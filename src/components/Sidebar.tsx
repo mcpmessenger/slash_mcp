@@ -6,6 +6,7 @@ import { useMCP } from '../hooks/useMCP';
 export const Sidebar: React.FC = () => {
   const { connections, resources, tools, prompts } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
+  const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
   const sections = [
     { id: 'connections', label: 'Connections', icon: Server, count: connections.length },
@@ -65,9 +66,18 @@ export const Sidebar: React.FC = () => {
                     ))}
                     
                     {section.id === 'resources' && resources.map((resource, idx) => (
-                      <div key={idx} className="p-2 rounded bg-gray-50 dark:bg-dark-800">
+                      <div
+                        key={idx}
+                        className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative"
+                        onMouseEnter={() => {
+                          if (typeof resource.data === 'string' && resource.mimeType?.startsWith('image/')) {
+                            setHoveredImg(resource.data);
+                          }
+                        }}
+                        onMouseLeave={() => setHoveredImg(null)}
+                      >
                         <div className="text-sm font-medium text-gray-800 dark:text-white">{resource.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-dark-400">{resource.uri}</div>
+                        <div className="text-xs text-gray-500 dark:text-dark-400 truncate max-w-[180px]">{resource.uri}</div>
                       </div>
                     ))}
                     
@@ -100,6 +110,11 @@ export const Sidebar: React.FC = () => {
           </div>
         ))}
       </div>
+      {hoveredImg && (
+        <div className="absolute top-2 right-2 z-50 border border-gray-200 dark:border-dark-700 shadow-lg bg-white dark:bg-black p-2 rounded">
+          <img src={hoveredImg} alt="preview" className="max-w-[150px] max-h-[150px] object-contain" />
+        </div>
+      )}
     </motion.aside>
   );
 };

@@ -95,10 +95,77 @@ export const useMCP = () => {
   }, []);
 
   const sendMessage = useCallback(async (connectionId: string, message: MCPMessage) => {
-    // Simulate message sending
-    console.log('Sending MCP message:', message);
-    return { jsonrpc: '2.0' as const, id: message.id, result: 'success' };
+    // Forward to mock server
+    const { handleRequest } = await import('../mockServer');
+    const response = handleRequest(message);
+    return response;
   }, []);
+
+  /** Convenience helper to send a text resource */
+  const sendTextResource = useCallback(async (connectionId: string, content: string) => {
+    const message: MCPMessage = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'mcp_sendResource',
+      params: { type: 'text', content },
+    };
+    const response = await sendMessage(connectionId, message);
+    if ('result' in response && response.result?.resourceId) {
+      // Add to local resources list
+      setResources(prev => [
+        ...prev,
+        {
+          uri: `mcp://${response.result.resourceId}`,
+          name: `Text Resource ${prev.length + 1}`,
+          description: 'User provided text',
+          mimeType: 'text/plain',
+          data: content,
+        },
+      ]);
+    }
+    return response;
+  }, [sendMessage]);
+
+  /** Convenience helper to invoke a tool */
+  const invokeTool = useCallback(async (connectionId: string, toolName: string, parameters: any) => {
+    const message: MCPMessage = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'mcp_invokeTool',
+      params: { toolName, parameters },
+    };
+    return sendMessage(connectionId, message);
+  }, [sendMessage]);
+
+  /** Send binary file resource */
+  const sendFileResource = useCallback(async (connectionId: string, file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const message: MCPMessage = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'mcp_sendResource',
+      params: { type: 'binary', content: arrayBuffer, name: file.name, mimeType: file.type },
+    };
+    const response = await sendMessage(connectionId, message);
+    if ('result' in response && response.result?.resourceId) {
+      let data: string | ArrayBuffer = arrayBuffer;
+      if (file.type.startsWith('image/')) {
+        const blob = new Blob([arrayBuffer], { type: file.type });
+        data = URL.createObjectURL(blob);
+      }
+      setResources(prev => [
+        ...prev,
+        {
+          uri: `mcp://${response.result.resourceId}`,
+          name: file.name,
+          description: 'Uploaded file',
+          mimeType: file.type,
+          data,
+        },
+      ]);
+    }
+    return response;
+  }, [sendMessage]);
 
   return {
     connections,
@@ -109,5 +176,8 @@ export const useMCP = () => {
     connect,
     disconnect,
     sendMessage,
+    sendTextResource,
+    invokeTool,
+    sendFileResource,
   };
 };

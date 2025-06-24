@@ -5,16 +5,19 @@ import {
   Upload, 
   Image, 
   FileText, 
-  Code, 
-  Play,
+  Code,
   Zap
 } from 'lucide-react';
 import { useMCP } from '../hooks/useMCP';
 
 export const MainContent: React.FC = () => {
-  const { connect, isConnecting, connections } = useMCP();
+  const { connect, isConnecting, connections, sendTextResource, invokeTool, sendFileResource } = useMCP();
   const [message, setMessage] = useState('');
   const [serverUrl, setServerUrl] = useState('ws://localhost:8080');
+  interface ChatEntry { id: number; role: 'user' | 'server'; content: string; img?: string }
+  const [chat, setChat] = useState<ChatEntry[]>([]);
+  const [hoveredImg, setHoveredImg] = useState<string | null>(null);
+  const hiddenFileInput = React.useRef<HTMLInputElement>(null);
 
   const handleConnect = () => {
     if (serverUrl.trim()) {
@@ -22,10 +25,85 @@ export const MainContent: React.FC = () => {
     }
   };
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      console.log('Sending message:', message);
-      setMessage('');
+  const handleSendMessage = async () => {
+    if (!message.trim() || connections.length === 0) return;
+
+    const userEntry = { id: Date.now(), role: 'user' as const, content: message };
+    setChat(prev => [...prev, userEntry]);
+
+    // Send to MCP mock server
+    const response = await sendTextResource(connections[0].id, message);
+
+    if ('result' in response && response.result?.analysis) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: response.result.analysis };
+      setChat(prev => [...prev, serverEntry]);
+    } else if (response.error) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: `Error: ${response.error.message}` };
+      setChat(prev => [...prev, serverEntry]);
+    }
+
+    setMessage('');
+  };
+
+  const handleQuickTextResource = async () => {
+    if (connections.length === 0) return alert('Connect to an MCP server first.');
+    const text = window.prompt('Enter text to send as resource:');
+    if (!text) return;
+    setMessage(text);
+    await handleSendMessageVia(text);
+  };
+
+  const handleQuickCodeAnalysis = async () => {
+    if (connections.length === 0) return alert('Connect to an MCP server first.');
+    const language = window.prompt('Language (e.g., javascript, python):');
+    if (!language) return;
+    const code = window.prompt('Paste code for analysis:');
+    if (!code) return;
+    // show user code in chat
+    const userEntry = { id: Date.now(), role: 'user' as const, content: `Analyze ${language} code:\n${code}` };
+    setChat(prev => [...prev, userEntry]);
+    const response = await invokeTool(connections[0].id, 'analyze_code', { language, code });
+    if ('result' in response && response.result?.toolOutput) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: response.result.toolOutput };
+      setChat(prev => [...prev, serverEntry]);
+    } else if (response.error) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: `Error: ${response.error.message}` };
+      setChat(prev => [...prev, serverEntry]);
+    }
+  };
+
+  const handleSendMessageVia = async (text: string) => {
+    // extracted inner of handleSendMessage to reuse for quick text resource
+    const userEntry = { id: Date.now(), role: 'user' as const, content: text };
+    setChat(prev => [...prev, userEntry]);
+    const response = await sendTextResource(connections[0].id, text);
+    if ('result' in response && response.result?.analysis) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: response.result.analysis };
+      setChat(prev => [...prev, serverEntry]);
+    } else if (response.error) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: `Error: ${response.error.message}` };
+      setChat(prev => [...prev, serverEntry]);
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (connections.length === 0) return alert('Connect to an MCP server first.');
+    hiddenFileInput.current?.click();
+  };
+
+  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || connections.length === 0) return;
+    const localUrl = URL.createObjectURL(file);
+    const userEntry: ChatEntry = { id: Date.now(), role: 'user', content: `Uploaded file: ${file.name}`, img: localUrl };
+    setChat(prev => [...prev, userEntry]);
+    const response = await sendFileResource(connections[0].id, file);
+    if ('result' in response && response.result?.info) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: response.result.info };
+      setChat(prev => [...prev, serverEntry]);
+    } else if (response.error) {
+      const serverEntry = { id: Date.now() + 1, role: 'server' as const, content: `Error: ${response.error.message}` };
+      setChat(prev => [...prev, serverEntry]);
     }
   };
 
@@ -94,13 +172,28 @@ export const MainContent: React.FC = () => {
             </motion.div>
           </div>
 
+          {/* Chat Messages */}
+          {chat.map((entry) => (
+            <div key={entry.id} className={`flex ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`p-2 rounded-lg ${entry.role === 'user' ? 'bg-primary-50 dark:bg-dark-800' : 'bg-accent-50 dark:bg-dark-800'}`}
+                onMouseEnter={() => {
+                  if (entry.img) setHoveredImg(entry.img);
+                }}
+                onMouseLeave={() => setHoveredImg(null)}
+              >
+                {entry.content}
+              </div>
+            </div>
+          ))}
+
           {/* Quick Actions */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { icon: Upload, label: 'Upload Resource', color: 'primary' },
-              { icon: Image, label: 'Screenshot', color: 'accent' },
-              { icon: FileText, label: 'Text Resource', color: 'primary' },
-              { icon: Code, label: 'Code Analysis', color: 'accent' },
+              { icon: Upload, label: 'Upload Resource', color: 'primary', onClick: handleUploadClick },
+              { icon: Image, label: 'Screenshot', color: 'accent', onClick: () => alert('Not implemented yet') },
+              { icon: FileText, label: 'Text Resource', color: 'primary', onClick: handleQuickTextResource },
+              { icon: Code, label: 'Code Analysis', color: 'accent', onClick: handleQuickCodeAnalysis },
             ].map((action, idx) => (
               <motion.button
                 key={idx}
@@ -110,6 +203,7 @@ export const MainContent: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 + idx * 0.1 }}
+                onClick={action.onClick}
               >
                 <action.icon className={`w-6 h-6 text-${action.color}-600 dark:text-${action.color}-400 mx-auto mb-2`} />
                 <span className="text-sm font-medium text-gray-700 dark:text-dark-300">
@@ -173,6 +267,20 @@ export const MainContent: React.FC = () => {
           </a>
         </p>
       </motion.footer>
+
+      {/* add hidden file input element inside root */}
+      <input
+        type="file"
+        ref={hiddenFileInput}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {hoveredImg && (
+        <div className="fixed bottom-24 right-8 z-50 border border-gray-200 dark:border-dark-700 bg-white dark:bg-black p-2 rounded shadow-lg">
+          <img src={hoveredImg} alt="preview" className="max-w-[200px] max-h-[200px] object-contain" />
+        </div>
+      )}
     </div>
   );
 };
