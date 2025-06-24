@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, Circle } from 'lucide-react';
-import { useMCP } from '../hooks/useMCP';
+import { useMCP } from '../context/MCPContext';
 
 export const Sidebar: React.FC = () => {
   const { connections, resources, tools, prompts } = useMCP();

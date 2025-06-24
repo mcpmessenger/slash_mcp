@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { MCPConnection, MCPMessage, MCPResource, MCPTool, MCPPrompt } from '../types/mcp';
+import { MCPWebSocketClient } from '../lib/MCPWebSocketClient';
 
 export const useMCP = () => {
   const [connections, setConnections] = useState<MCPConnection[]>([]);
@@ -11,95 +12,78 @@ export const useMCP = () => {
   const connect = useCallback(async (serverUrl: string) => {
     setIsConnecting(true);
     try {
-      // Simulate MCP connection
-      const mockConnection: MCPConnection = {
-        id: `conn-${Date.now()}`,
+      const client = new MCPWebSocketClient(serverUrl);
+      await client.waitUntilOpen();
+
+      const connection: MCPConnection & { client: MCPWebSocketClient } = {
+        id: client.id,
         server: {
-          name: 'Mock MCP Server',
-          version: '1.0.0',
+          name: serverUrl.replace(/^wss?:\/\//, ''),
+          version: 'unknown',
           capabilities: {
             resources: true,
             tools: true,
             prompts: true,
             sampling: true,
-          }
+          },
         },
         status: 'connected',
         lastActivity: new Date(),
-      };
+        client,
+      } as any;
 
-      setConnections(prev => [...prev, mockConnection]);
+      setConnections(prev => [...prev, connection]);
 
-      // Mock resources
-      setResources([
-        {
-          uri: 'file:///example.txt',
-          name: 'Example Document',
-          description: 'A sample text document',
-          mimeType: 'text/plain',
-        },
-        {
-          uri: 'screenshot://desktop',
-          name: 'Desktop Screenshot',
-          description: 'Current desktop screenshot',
-          mimeType: 'image/png',
+      // Fetch capabilities
+      try {
+        const capResponse = await client.send({ jsonrpc: '2.0', id: Date.now(), method: 'mcp_getCapabilities' });
+        if ('result' in capResponse) {
+          const { resources: res = [], tools: tls = [], prompts: prs = [] } = capResponse.result || {};
+          setResources(res);
+          setTools(tls);
+          setPrompts(prs);
         }
-      ]);
-
-      // Mock tools
-      setTools([
-        {
-          name: 'file_search',
-          description: 'Search for files in the filesystem',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              query: { type: 'string' },
-              path: { type: 'string' }
-            }
-          }
-        },
-        {
-          name: 'web_scrape',
-          description: 'Extract content from web pages',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              url: { type: 'string' }
-            }
-          }
-        }
-      ]);
-
-      // Mock prompts
-      setPrompts([
-        {
-          name: 'analyze_code',
-          description: 'Analyze code for potential issues',
-          arguments: [
-            { name: 'language', description: 'Programming language', required: true },
-            { name: 'code', description: 'Code to analyze', required: true }
-          ]
-        }
-      ]);
-
-    } catch (error) {
-      console.error('Failed to connect to MCP server:', error);
+      } catch (capErr) {
+        console.warn('Failed to fetch capabilities', capErr);
+      }
+    } catch (err) {
+      console.error('Connection failed, falling back to mock mode', err);
+      // fallback to mock connection only if environment is development
+      if (import.meta.env.DEV) {
+        const mockConnection: MCPConnection = {
+          id: `mock-${Date.now()}`,
+          server: {
+            name: 'Mock MCP Server',
+            version: '1.0.0',
+            capabilities: { resources: true, tools: true, prompts: true, sampling: true },
+          },
+          status: 'connected',
+          lastActivity: new Date(),
+        };
+        setConnections(prev => [...prev, mockConnection]);
+      }
     } finally {
       setIsConnecting(false);
     }
   }, []);
 
   const disconnect = useCallback((connectionId: string) => {
-    setConnections(prev => prev.filter(conn => conn.id !== connectionId));
+    setConnections(prev => {
+      const conn = (prev as Array<MCPConnection & { client?: MCPWebSocketClient }>).find(c => c.id === connectionId);
+      conn?.client?.close();
+      return prev.filter(c => c.id !== connectionId);
+    });
   }, []);
 
   const sendMessage = useCallback(async (connectionId: string, message: MCPMessage) => {
-    // Forward to mock server
+    const conn = (connections as Array<MCPConnection & { client?: MCPWebSocketClient }>).find(c => c.id === connectionId);
+    if (conn?.client) {
+      return conn.client.send(message);
+    }
+    // If no client (mock)
     const { handleRequest } = await import('../mockServer');
-    const response = handleRequest(message);
-    return response;
-  }, []);
+    return handleRequest(message);
+  }, [connections]);
 
   /** Convenience helper to send a text resource */
   const sendTextResource = useCallback(async (connectionId: string, content: string) => {
@@ -140,16 +124,21 @@ export const useMCP = () => {
   /** Send binary file resource */
   const sendFileResource = useCallback(async (connectionId: string, file: File) => {
     const arrayBuffer = await file.arrayBuffer();
+    // Convert to Base64 for transport
+    const base64String = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     const message: MCPMessage = {
       jsonrpc: '2.0',
       id: Date.now(),
       method: 'mcp_sendResource',
-      params: { type: 'binary', content: arrayBuffer, name: file.name, mimeType: file.type },
+      params: { type: 'binary', content: base64String, name: file.name, mimeType: file.type },
     };
     const response = await sendMessage(connectionId, message);
     if ('result' in response && response.result?.resourceId) {
-      let data: string | ArrayBuffer = arrayBuffer;
-      if (file.type.startsWith('image/')) {
+      let data: string | ArrayBuffer | undefined;
+      if (response.result.url) {
+        // absolute URL relative to backend
+        data = response.result.url;
+      } else if (file.type.startsWith('image/')) {
         const blob = new Blob([arrayBuffer], { type: file.type });
         data = URL.createObjectURL(blob);
       }
@@ -179,5 +168,14 @@ export const useMCP = () => {
     sendTextResource,
     invokeTool,
     sendFileResource,
+    onNotification: (handler: (msg: MCPMessage) => void) => {
+      const unsubs: Array<() => void> = [];
+      (connections as any).forEach((c: any) => {
+        if (c.client) {
+          unsubs.push(c.client.onNotification(handler));
+        }
+      });
+      return () => unsubs.forEach((f) => f());
+    }
   };
 };

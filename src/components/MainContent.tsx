@@ -8,7 +8,7 @@ import {
   Code,
   Zap
 } from 'lucide-react';
-import { useMCP } from '../hooks/useMCP';
+import { useMCP } from '../context/MCPContext';
 
 export const MainContent: React.FC = () => {
   const { connect, isConnecting, connections, sendTextResource, invokeTool, sendFileResource } = useMCP();
