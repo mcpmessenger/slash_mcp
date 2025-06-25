@@ -22,4 +22,25 @@
 - Verbs still override; `@<pane> gemini "prompt"` forwards to other terminals.
 - Autocomplete list updated.
 
+### 2025-06-25 GUI Pivot & Dual-Pane Terminals
+- Settings is now the default landing route; gear icon replaced with Home on that page.
+- API-key management moved from modal into Settings (OpenAI, Anthropic, Gemini).  Keys persist to `localStorage`.
+- Added `DoublePane` layout composed of reusable `TerminalPane` components.
+- Removed legacy single-terminal / clients / metrics icons from header.
+- Dark-mode readability improved (higher contrast backgrounds/text).
+- TerminalPane enhancements:
+  - Local whitelist fallback (`ls, pwd, echo, date, whoami, help, clear`).
+  - Autosuggest list combines whitelist & connection handles.
+  - Forwarding (`@<handle> command`) now mirrors a summary line in the target pane via global `mcp_mirror` event for clearer UX.
+- Sidebar "+ Add Connection" prompts for URL and calls `connect()`.
+- `Header` now uses `react-router-dom`'s `useLocation`.
+- Smoke test pending after refactor.
+
+Suggested Next Steps
+- Persist per-pane scrollback to `localStorage` so reloading keeps history.
+- Real streamOutput hook to update mirrored entries with live output and success/error.
+- Toggle between one-pane and two-pane layouts at runtime.
+- Make whitelist editable in Settings.
+- Expand smoke test to cover dual-pane interactions and Settings navigation.
+
 *Continue appending notes here with each significant action or decision.* 

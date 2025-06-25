@@ -4,7 +4,7 @@ import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, C
 import { useMCP } from '../context/MCPContext';
 
 export const Sidebar: React.FC = () => {
-  const { connections, resources, tools, prompts } = useMCP();
+  const { connections, resources, tools, prompts, connect } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
@@ -96,6 +96,12 @@ export const Sidebar: React.FC = () => {
                     ))}
 
                     <motion.button
+                      onClick={() => {
+                        if (section.id === 'connections') {
+                          const url = window.prompt('Enter MCP server URL', 'ws://localhost:8080');
+                          if (url && url.trim()) connect(url.trim());
+                        }
+                      }}
                       className="w-full flex items-center justify-center space-x-2 p-2 rounded border-2 border-dashed border-gray-300 dark:border-dark-600 hover:border-primary-400 dark:hover:border-white transition-colors"
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
