@@ -20,6 +20,8 @@ export interface MCPResource {
   description?: string;
   mimeType?: string;
   data?: string | ArrayBuffer;
+  path?: string;
+  url?: string;
 }
 
 export interface MCPTool {

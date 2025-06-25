@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, Circle } from 'lucide-react';
 import { useMCP } from '../context/MCPContext';
 
 export const Sidebar: React.FC = () => {
-  const { connections, resources, tools, prompts, connect } = useMCP();
+  const { connections, resources, tools, prompts, connect, listResources } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeSection === 'resources' && resources.length === 0 && connections[0]) {
+      listResources(connections[0].id).catch(() => {});
+    }
+  }, [activeSection, resources.length, connections, listResources]);
 
   const sections = [
     { id: 'connections', label: 'Connections', icon: Server, count: connections.length },
@@ -68,7 +74,11 @@ export const Sidebar: React.FC = () => {
                     {section.id === 'resources' && resources.map((resource, idx) => (
                       <div
                         key={idx}
-                        className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative"
+                        className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative cursor-pointer hover:ring-1 hover:ring-primary-400"
+                        onClick={() => {
+                          const url = (resource.data as string) || (resource.path as any) || (resource.url as any) || '';
+                          if (url) window.open(url, '_blank');
+                        }}
                         onMouseEnter={() => {
                           if (typeof resource.data === 'string' && resource.mimeType?.startsWith('image/')) {
                             setHoveredImg(resource.data);

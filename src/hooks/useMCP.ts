@@ -41,9 +41,14 @@ export const useMCP = () => {
 
       setConnections(prev => [...prev, connection]);
 
-      // Register connectionId with backend for forwarding capabilities
+      // Register connection and logical agent ID with backend for forwarding
       try {
-        await client.send({ jsonrpc: '2.0', id: Date.now(), method: 'mcp_register', params: { connectionId: client.id } });
+        await client.send({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'mcp_register',
+          params: { connectionId: client.id, agentId: displayName },
+        });
       } catch {}
 
       // Fetch capabilities
@@ -207,6 +212,24 @@ export const useMCP = () => {
     return sendMessage(originConnId, outer);
   }, [sendMessage]);
 
+  /** Configure Supabase storage creds on backend */
+  const setStorageCreds = useCallback(async (connectionId: string, url: string, key: string) => {
+    return sendMessage(connectionId, { jsonrpc: '2.0', id: Date.now(), method: 'mcp_setStorageCreds', params: { url, key } });
+  }, [sendMessage]);
+
+  /** List resources from backend and merge into local state */
+  const listResources = useCallback(async (connectionId: string, filters: any = {}) => {
+    const resp = await sendMessage(connectionId, { jsonrpc:'2.0', id:Date.now(), method:'mcp_listResources', params: filters });
+    if ('result' in resp && Array.isArray(resp.result)) {
+      setResources(resp.result);
+    }
+    return resp;
+  }, [sendMessage]);
+
+  const getResource = useCallback(async (connectionId: string, resourceId: string) => {
+    return sendMessage(connectionId, { jsonrpc:'2.0', id: Date.now(), method:'mcp_getResource', params:{ resourceId } });
+  }, [sendMessage]);
+
   return {
     connections,
     resources,
@@ -226,6 +249,9 @@ export const useMCP = () => {
     invokeGemini,
     sendFileResource,
     forwardRequest,
+    setStorageCreds,
+    listResources,
+    getResource,
     setOpenAiKey,
     setAnthropicKey,
     setGeminiKey,

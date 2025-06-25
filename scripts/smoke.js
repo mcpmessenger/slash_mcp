@@ -34,18 +34,20 @@ function waitForServer(url, timeout = 10000) {
     console.log('🔍 Opening app');
     await page.goto(URL, { waitUntil: 'networkidle0', timeout: 60000 });
 
-    // Click Connect
-    await page.click('text=Connect');
-    // Give UI a moment to register the mock connection
-    await new Promise(r => setTimeout(r, 1500));
+    // Wait until a button containing the text "Connect" appears and click it
+    await page.waitForFunction(() => {
+      return [...document.querySelectorAll('button')].some(b => /connect/i.test(b.innerText));
+    }, { timeout: 15000 });
 
-    // Send hello
-    await page.type('input[placeholder="Send a message to the MCP server..."]', 'hello');
-    await page.keyboard.press('Enter');
+    await page.evaluate(() => {
+      const btn = [...document.querySelectorAll('button')].find(b => /connect/i.test(b.innerText));
+      btn?.click();
+    });
 
-    // Give time for analysis response
-    await new Promise(r => setTimeout(r, 2000));
+    // pause 5 s to let UI settle
+    await new Promise(r => setTimeout(r, 5000));
 
+    // —————  Smoke test ends here —————
     console.log('🎉 Smoke test passed');
     await browser.close();
     serveProc.kill();

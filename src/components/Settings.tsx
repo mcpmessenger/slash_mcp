@@ -1,18 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare } from 'lucide-react';
+import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
 import { useTheme } from '../hooks/useTheme';
 
 export const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const { connections, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey } = useMCP();
+  const { connections, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds } = useMCP();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
   const [claudeK, setClaudeK] = React.useState(anthropicKey);
   const [gemKey, setGemKey] = React.useState(geminiKey);
   const [saved, setSaved] = React.useState(false);
+  const [supabaseUrl, setSupabaseUrl] = React.useState('');
+  const [supabaseKey, setSupabaseKey] = React.useState('');
+  const [sbSaved, setSbSaved] = React.useState(false);
 
   const handleSaveKeys = () => {
     setOpenAiKey(key.trim());
@@ -20,6 +23,17 @@ export const Settings: React.FC = () => {
     setGeminiKey(gemKey.trim());
     setSaved(true);
     setTimeout(()=>setSaved(false),1500);
+  };
+
+  const handleSaveSupabase = async () => {
+    if (!connections[0]) return;
+    try {
+      await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKey.trim());
+      setSbSaved(true);
+      setTimeout(()=>setSbSaved(false),1500);
+    } catch (err) {
+      alert('Failed to set creds: '+ (err as any).message);
+    }
   };
 
   return (
@@ -138,6 +152,26 @@ export const Settings: React.FC = () => {
               <span className="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full">
                 {connections.length}
               </span>
+            </div>
+          </section>
+
+          {/* Storage Settings */}
+          <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Cloud className="w-5 h-5" />
+              Supabase Storage
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Supabase URL</label>
+                <input type="text" value={supabaseUrl} onChange={(e)=>setSupabaseUrl(e.target.value)} placeholder="https://project.supabase.co" className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Service Role Key</label>
+                <input type="password" value={supabaseKey} onChange={(e)=>setSupabaseKey(e.target.value)} placeholder="service-role..." className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
+              </div>
+              <button onClick={handleSaveSupabase} className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded">Save Supabase</button>
+              {sbSaved && <p className="text-green-500 text-sm text-center">Supabase configured!</p>}
             </div>
           </section>
 

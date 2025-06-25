@@ -6,6 +6,8 @@ import { createServer } from 'node:http';
 import { promises as fsPromises } from 'node:fs';
 import fs from 'node:fs';
 import path from 'node:path';
+import jwt from 'jsonwebtoken';
+import { getSupabase, initSupabase } from './supabaseClient.js';
 
 const storageDir = path.resolve('storage');
 if (!fs.existsSync(storageDir)) {
@@ -43,12 +45,33 @@ const httpServer = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const AUTH_OPTIONAL = (process.env.AUTH_OPTIONAL ?? (process.env.NODE_ENV !== 'production' ? 'true' : 'false')) === 'true';
+
+// If env has Supabase creds, initialize immediately
 // Map client-sent connectionId -> socket
 const socketMap = new Map();
+// NEW: Map logical agentId -> connectionId
+const agentRegistry = new Map();
+// Simple in-memory conversation history: Map<conversationId, Array<{speaker, message}>>
+const conversationContexts = new Map();
 // Map forwardedId -> { originSocket, originId }
 const forwardMap = new Map();
 
 let resourceCounter = 0;
+
+// --- Simple RBAC mapping (MVP) ---
+const ROLE_PERMS = {
+  guest: [],
+  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
+  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
+  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
+};
+
+function roleAllows(role, tool) {
+  const allowed = ROLE_PERMS[role] || [];
+  return allowed.includes(tool);
+}
 
 function getExtFromMime(mime) {
   if (!mime) return '';
@@ -56,7 +79,26 @@ function getExtFromMime(mime) {
   return map[mime] || '';
 }
 
-wss.on('connection', (socket) => {
+wss.on('connection', (socket, req) => {
+  // Optional JWT verification
+  try {
+    const url = new URL(req.url ?? '', `http://${req.headers.host}`);
+    const token = url.searchParams.get('token') || (req.headers['sec-websocket-protocol']?.toString().split('Bearer ')[1] ?? '');
+    if (token) {
+      const payload = jwt.verify(token, JWT_SECRET);
+      socket.jwtPayload = payload;
+      socket.role = payload.role ?? 'guest';
+    } else if (!AUTH_OPTIONAL) {
+      socket.close(4001, 'auth required');
+      return;
+    } else {
+      socket.role = 'guest';
+    }
+  } catch (err) {
+    socket.close(4002, 'invalid token');
+    return;
+  }
+
   console.log('Client connected');
 
   // Helper to relay response back to origin if this is a forwarded id
@@ -114,6 +156,10 @@ wss.on('connection', (socket) => {
             const analysis = `Saved ${content.length} characters`;
             const url = `/files/${filename}`;
 
+            if (getSupabase()) {
+              await getSupabase().from('resources').insert({ id: resourceId, name, mime_type: 'text/plain', path: url, uploader: socket.agentId ?? socket.connectionId });
+            }
+
             return respond({ result: { resourceId, status: 'uploaded', analysis, url } });
           } catch (err) {
             return respond({ error: { code: -32002, message: 'Text write failed', data: err.message } });
@@ -127,6 +173,12 @@ wss.on('connection', (socket) => {
             const filepath = path.join(storageDir, filename);
             await fsPromises.writeFile(filepath, buffer);
             const url = `/files/${filename}`;
+
+            if (getSupabase()) {
+              // upload file to storage bucket 'resources'
+              await getSupabase().storage.from('resources').upload(filename, buffer, { contentType: mimeType, upsert: true });
+              await getSupabase().from('resources').insert({ id: resourceId, name, mime_type: mimeType, path: filename, uploader: socket.agentId ?? socket.connectionId });
+            }
             return respond({ result: { resourceId, status: 'uploaded', url } });
           } catch (err) {
             return respond({ error: { code: -32001, message: 'File write failed', data: err.message } });
@@ -137,6 +189,13 @@ wss.on('connection', (socket) => {
 
       case 'mcp_invokeTool': {
         const { toolName, parameters } = message.params || {};
+
+        // RBAC enforcement
+        const requesterRole = socket.role || 'guest';
+        if (!roleAllows(requesterRole, toolName)) {
+          return respond({ error: { code: -32013, message: `Role ${requesterRole} not permitted for ${toolName}` } });
+        }
+
         if (toolName === 'openai_chat') {
           const { prompt, apiKey, model } = parameters || {};
           if (!prompt) {
@@ -172,10 +231,20 @@ wss.on('connection', (socket) => {
             }
           }
 
-          // Use finalCmd instead of command
+          // Run command inside a sandboxed Docker container (busybox by default)
           const execId = `exec_${Date.now()}`;
+          const dockerImage = process.env.MCP_SHELL_IMAGE || 'busybox';
+          // Build docker args: docker run --rm <image> sh -c "<cmd>"
+          const dockerArgs = ['run', '--rm', dockerImage, 'sh', '-c', finalCmd];
+
           const { spawn } = await import('node:child_process');
-          const child = spawn(process.platform === 'win32' ? 'cmd.exe' : 'bash', [process.platform === 'win32' ? '/c' : '-c', finalCmd], { shell: false });
+          let child;
+          try {
+            child = spawn('docker', dockerArgs, { shell: false });
+          } catch (err) {
+            // Fallback to previous behaviour if docker not available
+            child = spawn(process.platform === 'win32' ? 'cmd.exe' : 'bash', [process.platform === 'win32' ? '/c' : '-c', finalCmd], { shell: false });
+          }
 
           const timeoutMs = 5000;
           const killTimer = setTimeout(() => {
@@ -266,100 +335,82 @@ wss.on('connection', (socket) => {
       }
 
       case 'mcp_register': {
-        const { connectionId } = message.params || {};
-        if (connectionId) socketMap.set(connectionId, socket);
-        return respond({ result: { status: 'registered' } });
+        // OLD IMPLEMENTATION (connectionId only) has been replaced to support agent IDs and metadata
+        const { connectionId, agentId, role = 'ai_agent', capabilities = [] } = message.params || {};
+        if (connectionId) {
+          socketMap.set(connectionId, socket);
+          socket.connectionId = connectionId; // track on socket for cleanup
+        }
+        if (agentId) {
+          agentRegistry.set(agentId, connectionId ?? socket.connectionId ?? '');
+          socket.agentId = agentId;
+        }
+        // Store optional metadata on socket for future use
+        socket.mcpMeta = { role, capabilities };
+        return respond({ result: { status: 'registered', connectionId: socket.connectionId, agentId } });
       }
 
       case 'mcp_forward': {
-        // Execute the inner request on behalf of targetSocket so output / notifications
-        // naturally stream to that client. For now we support only mcp_invokeTool.
-
-        if (message.params && message.params.request) {
-          const request = message.params.request;
-          const targetConnectionId = message.params.targetConnectionId;
-          if (!targetConnectionId || !request) return respond({ error: { code: -32602, message: 'Missing params' } });
-          const targetSocket = socketMap.get(targetConnectionId);
-          if (!targetSocket) return respond({ error: { code: -32010, message: 'targetConnectionId not found' } });
-
-          // Reuse existing invokeTool switch by calling with synthetic message
-          const savedMessage = message; // keep ref if needed
-          message = request; // set message for reuse of logic below
-          socket = targetSocket; // route notifications to target pane
-          // fall through to switch-case 'mcp_invokeTool' below by recursion
-          // We will respond success immediately to origin
-          respond({ result: { status: 'forwarded' } });
-          // Now process as normal to produce notifications on targetSocket
-          // (wrap in try/catch to avoid crashing)
-          try {
-            // using switch-case requires putting code here; easier: directly call same handling for mcp_invokeTool.
-            const { toolName, parameters } = request.params || {};
-            // duplicated minimal handling for shell_execute, openai_chat, anthropic_chat
-            const relayRespond = ()=>{}; // no-op
-            switch(toolName){
-              case 'shell_execute': {
-                const { command } = parameters || {};
-                if(!command) break;
-                const cmdParts=command.trim().split(/\s+/);
-                const baseCmd=cmdParts[0];
-                if(!ALLOWED_CMDS.includes(baseCmd)) break;
-                let finalCmd=command;
-                if(baseCmd==='ping'){
-                  if(process.platform==='win32') finalCmd=command.replace(/-c\s+(\d+)/,'-n $1');
-                  else finalCmd=command.replace(/-n\s+(\d+)/,'-c $1');
-                }
-                const execId=`exec_${Date.now()}`;
-                const { spawn }=await import('node:child_process');
-                const child=spawn(process.platform==='win32'?'cmd.exe':'bash',[process.platform==='win32'?'/c':'-c',finalCmd],{shell:false});
-                child.stdout.on('data',chunk=>{
-                  targetSocket.send(JSON.stringify({jsonrpc:'2.0',method:'mcp_streamOutput',params:{execId,chunk:chunk.toString()}}));
-                });
-                child.stderr.on('data',chunk=>{
-                  targetSocket.send(JSON.stringify({jsonrpc:'2.0',method:'mcp_streamOutput',params:{execId,chunk:chunk.toString()}}));
-                });
-                child.on('close',code=>{
-                  targetSocket.send(JSON.stringify({jsonrpc:'2.0',method:'mcp_execComplete',params:{execId,status:code===0?'success':'error'}}));
-                });
-                break;
-              }
-              case 'openai_chat': {
-                const { prompt, apiKey, model }=parameters||{};
-                if(!prompt) break;
-                const execId=`chat_${Date.now()}`;
-                targetSocket.send(JSON.stringify({jsonrpc:'2.0',method:'mcp_streamOutput',params:{execId,chunk:'[OpenAI chat forwarding…]'}}));
-                import('./adapters/openai.js').then(({chat})=>chat({socket:targetSocket,execId,prompt,apiKey,model}));
-                break;
-              }
-              case 'anthropic_chat': {
-                const { prompt, apiKey, model }=parameters||{};
-                if(!prompt) break;
-                const execId=`claude_${Date.now()}`;
-                targetSocket.send(JSON.stringify({jsonrpc:'2.0',method:'mcp_streamOutput',params:{execId,chunk:'[Claude chat forwarding…]'}}));
-                import('./adapters/anthropic.js').then(({chat})=>chat({socket:targetSocket,execId,prompt,apiKey,model}));
-                break;
-              }
-            }
-          }catch{}
-          return;
+        const { targetAgentId, targetConnectionId, request } = message.params || {};
+        const connectionIdToUse = targetAgentId ? agentRegistry.get(targetAgentId) : targetConnectionId;
+        if (!connectionIdToUse || !request) {
+          return respond({ error: { code: -32602, message: 'Missing target or request' } });
+        }
+        const targetSocket = socketMap.get(connectionIdToUse);
+        if (!targetSocket) {
+          return respond({ error: { code: -32010, message: 'Target not connected' } });
         }
 
-        // Fallback: forward as raw request and pipe response back
-        const forwardId = message.id ?? `fwd_${Date.now()}`;
-        message.id = forwardId;
-        forwardMap.set(forwardId, { originSocket: socket, originId: message.id });
-        socket.send(JSON.stringify(message));
-        return;
+        // Forward the inner request verbatim
+        targetSocket.send(JSON.stringify(request));
+
+        return respond({ result: { status: 'forwarded', to: targetAgentId ?? connectionIdToUse } });
       }
 
-      default:
-        return respond({ error: { code: -32601, message: 'Method not found' } });
+      case 'mcp_getResource': {
+        const { resourceId } = message.params || {};
+        if (!getSupabase()) return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
+        const { data, error } = await getSupabase().from('resources').select('*').eq('id', resourceId).single();
+        if (error) return respond({ error: { code: -32051, message: error.message } });
+        return respond({ result: data });
+      }
+
+      case 'mcp_listResources': {
+        if (!getSupabase()) return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
+        const { mimeType, uploader } = message.params || {};
+        let query = getSupabase().from('resources').select('*');
+        if (mimeType) query = query.eq('mime_type', mimeType);
+        if (uploader) query = query.eq('uploader', uploader);
+        const { data, error } = await query;
+        if (error) return respond({ error: { code: -32051, message: error.message } });
+        return respond({ result: data });
+      }
+
+      case 'mcp_setStorageCreds': {
+        const { url, key } = message.params || {};
+        if (!url || !key) return respond({ error: { code: -32602, message: 'Missing url or key' } });
+        const ok = initSupabase(url, key);
+        if (ok) return respond({ result: { status: 'supabase_configured' } });
+        return respond({ error: { code: -32052, message: 'Failed to init Supabase' } });
+      }
     }
   });
 
-  socket.on('close', () => console.log('Client disconnected'));
+  socket.on('close', () => {
+    console.log('Client disconnected');
+    if (socket.connectionId) socketMap.delete(socket.connectionId);
+    if (socket.agentId) agentRegistry.delete(socket.agentId);
+  });
 });
+
+// Attempt env-based initialization at startup
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+  initSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+} else {
+  console.log('Supabase not configured - running in local-only mode');
+}
 
 httpServer.listen(PORT, () => {
   console.log(`MCP WebSocket server listening on ws://localhost:${PORT}`);
   console.log(`Serving uploaded files at http://localhost:${PORT}/files/<filename>`);
-}); 
+});

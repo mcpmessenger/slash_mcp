@@ -43,4 +43,14 @@ Suggested Next Steps
 - Make whitelist editable in Settings.
 - Expand smoke test to cover dual-pane interactions and Settings navigation.
 
+### 2025-06-25
+- Phase-1 agent registry and enhanced `mcp_forward` completed.
+- Added RBAC with optional JWT auth (guest/developer/admin/ai_agent roles).
+- Sandboxed `shell_execute` via Docker when available.
+- Integrated dynamic Supabase storage: `mcp_setStorageCreds`, `mcp_listResource`, `mcp_getResource`.
+- Front-end Settings panel now lets users paste Supabase URL + service role key.
+- Implemented Resource drawer in sidebar (lists, previews, uploads).
+- Dark-mode form/label contrast tweak.
+- Pipeline: cleaned Vite build, resilient Puppeteer smoke test (build/serve/connect flow).
+
 *Continue appending notes here with each significant action or decision.* 
