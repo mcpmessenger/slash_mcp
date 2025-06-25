@@ -67,4 +67,16 @@ Suggested Next Steps
 * Sidebar prompts can be added/removed, persisted locally, and dragged to Terminal.
 * Forwarding logic now streams shell output back to origin window.
 
-*Continue appending notes here with each significant action or decision.* 
+*Continue appending notes here with each significant action or decision.*
+
+### 2025-06-25 Tool Registry + First Integrations
+- Introduced **ToolRegistry** on the backend – pluggable architecture for all future MCP tools.
+- Migrated `mcp_invokeTool` to delegate to the registry when a matching tool is found.
+- Added **Zapier** (`zapier_trigger_zap`) and **OpenAI** (`openai_tool`) adapters, both registered at server start.
+- Role-based access lists extended to include new tools for `developer`, `admin`, and `ai_agent` roles.
+- Front-end:
+  - New `tool <name> <json>` shortcut in both `Terminal` and `TerminalPane` so any registry tool can be invoked from the UI.
+  - Settings page now persists OpenAI, Anthropic, Gemini, **Zapier Webhook URL**, and Supabase URL/Service-Role Key to `localStorage`.
+  - Supabase creds are pushed to backend via `mcp_setStorageCreds`, after which uploads go directly to the bucket.
+- Smoke tests and unit tests (`ToolRegistry.test.js`) pass.
+- Manual validation: `tool openai_tool {"prompt":"hi"}` returns completion; `tool zapier_trigger_zap {"payload":{"hello":"world"}}` returns `status: triggered, httpStatus: 200`. 

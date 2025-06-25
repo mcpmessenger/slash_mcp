@@ -108,6 +108,36 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
       }
     }
 
+    if (verb === 'tool') {
+      const toolName = parts[1];
+      const jsonStr = cmd.slice(cmd.indexOf(toolName) + toolName.length).trim();
+      let params: any = {};
+      if (jsonStr) {
+        try {
+          params = JSON.parse(jsonStr);
+        } catch {
+          setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Invalid JSON payload', status:'error'}:e));
+          setHistory(prev=>[...prev,cmd]);
+          setHistoryIdx(-1);
+          return;
+        }
+      }
+      try {
+        const res = await invokeTool(connId, toolName, params);
+        if ('result' in res) {
+          setEntries(prev=>prev.map(e=>e.id===id?{...e, output: JSON.stringify(res.result, null, 2), status:'success'}:e));
+        } else {
+          const msg = (res as any).error?.message ?? 'Error';
+          setEntries(prev=>prev.map(e=>e.id===id?{...e, output: msg, status:'error'}:e));
+        }
+      } catch(err:any) {
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output: err.message ?? 'Error', status:'error'}:e));
+      }
+      setHistory(prev=>[...prev,cmd]);
+      setHistoryIdx(-1);
+      return;
+    }
+
     try {
       let res;
       if (verb === 'chat') {

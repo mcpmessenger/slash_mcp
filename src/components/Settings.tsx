@@ -1,38 +1,40 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud } from 'lucide-react';
+import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
 
 export const Settings: React.FC = () => {
-  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources } = useMCP();
+  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources, zapierWebhook, setZapierWebhook, supUrl, supKey, setSupabaseCredsLocal } = useMCP();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
   const [claudeK, setClaudeK] = React.useState(anthropicKey);
   const [gemKey, setGemKey] = React.useState(geminiKey);
   const [saved, setSaved] = React.useState(false);
-  const [supabaseUrl, setSupabaseUrl] = React.useState('');
-  const [supabaseKey, setSupabaseKey] = React.useState('');
+  const [zapUrl, setZapUrl] = React.useState(zapierWebhook);
+  const [supabaseUrl, setSupabaseUrl] = React.useState(supUrl);
+  const [supabaseKeyVal, setSupabaseKeyVal] = React.useState(supKey);
   const [sbSaved, setSbSaved] = React.useState(false);
 
   const handleSaveKeys = () => {
     setOpenAiKey(key.trim());
     setAnthropicKey(claudeK.trim());
     setGeminiKey(gemKey.trim());
+    setZapierWebhook(zapUrl.trim());
     setSaved(true);
     setTimeout(()=>setSaved(false),1500);
   };
 
   const handleSaveSupabase = async () => {
-    if (!connections[0]) return;
-    try {
-      await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKey.trim());
-      await listResources(connections[0].id);
-      setSbSaved(true);
-      setTimeout(()=>setSbSaved(false),1500);
-    } catch (err) {
-      alert('Failed to set creds: '+ (err as any).message);
+    setSupabaseCredsLocal(supabaseUrl.trim(), supabaseKeyVal.trim());
+    if (connections[0]) {
+      try {
+        await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKeyVal.trim());
+        await listResources(connections[0].id);
+      } catch (err) { alert('Backend rejected creds: '+(err as any).message); }
     }
+    setSbSaved(true);
+    setTimeout(()=>setSbSaved(false),1500);
   };
 
   return (
@@ -134,6 +136,11 @@ export const Settings: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Zapier Webhook URL</label>
+                <input type="text" value={zapUrl} onChange={(e)=>setZapUrl(e.target.value)} placeholder="https://hooks.zapier.com/..." className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+              </div>
+
               <button
                 onClick={handleSaveKeys}
                 className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded"
@@ -157,7 +164,7 @@ export const Settings: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Service Role Key</label>
-                <input type="password" value={supabaseKey} onChange={(e)=>setSupabaseKey(e.target.value)} placeholder="service-role..." className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
+                <input type="password" value={supabaseKeyVal} onChange={(e)=>setSupabaseKeyVal(e.target.value)} placeholder="service-role..." className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
               </div>
               <button onClick={handleSaveSupabase} className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded">Save Supabase</button>
               {sbSaved && <p className="text-green-500 text-sm text-center">Supabase configured!</p>}

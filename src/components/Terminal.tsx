@@ -106,6 +106,37 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
       return;
     }
 
+    // New: tool shorthand eg: tool openai_tool {"prompt":"hi"}
+    if (verb === 'tool') {
+      const toolName = parts[1];
+      const jsonStr = command.slice(command.indexOf(toolName) + toolName.length).trim();
+      let params: any = {};
+      if (jsonStr) {
+        try {
+          params = JSON.parse(jsonStr);
+        } catch {
+          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: 'Invalid JSON payload', status: 'error' } : e));
+          return;
+        }
+      }
+      if (!targetId) {
+        setEntries(prev => prev.map(e => e.id === id ? { ...e, output: 'Not connected to MCP server', status: 'error' } : e));
+        return;
+      }
+      try {
+        const res = await invokeTool(targetId, toolName, params);
+        if ('result' in res) {
+          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: JSON.stringify(res.result, null, 2), status: 'success' } : e));
+        } else {
+          const msg = (res as any).error?.message ?? 'Error';
+          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
+        }
+      } catch (err: any) {
+        setEntries(prev => prev.map(e => e.id === id ? { ...e, output: err.message ?? 'Execution failed', status: 'error' } : e));
+      }
+      return;
+    }
+
     if (targetId) {
       try {
         let res;

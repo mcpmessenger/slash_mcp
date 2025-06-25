@@ -53,6 +53,12 @@ You now have a live shell in the UI (`Terminal` icon) plus sidebar capability da
 * **Terminal-to-server shell** – run any command (5 s timeout). Output streams back to the modal, with history (↑/↓) and live *running…* indicator.
 * **Capability handshake** – client requests `mcp_getCapabilities` after connect; sidebar counts populate automatically.
 * **Resource upload (mock)** – text / binary upload flows exist; server echoes receipt. Persisted storage coming soon.
+* **Pluggable Tool Registry** – backend auto-discovers registered tools.
+* **OpenAI & Zapier integrations** – invoke with
+  ```
+  tool openai_tool {"prompt":"Hello"}
+  tool zapier_trigger_zap {"payload":{"run":true}}
+  ```
 
 ---
 
@@ -64,6 +70,7 @@ You now have a live shell in the UI (`Terminal` icon) plus sidebar capability da
 4. Docker & docker-compose for one-shot deployment.
 5. Optional auth (API key / JWT).
 6. LLM integration proof-of-concept (`mcp_invokeTool → llm_chat`).
+7. OpenAI/Zapier done, next Supabase Tool.
 
 ---
 

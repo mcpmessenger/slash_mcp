@@ -16,14 +16,20 @@ export const useMCP = () => {
   const [openAiKey, setOpenAiKeyState] = useState<string>(() => localStorage.getItem('openai_key') ?? '');
   const [anthropicKey, setAnthropicKeyState] = useState<string>(() => localStorage.getItem('anthropic_key') ?? '');
   const [geminiKey, setGeminiKeyState] = useState<string>(() => localStorage.getItem('gemini_key') ?? '');
+  const [zapierWebhook, setZapierWebhookState] = useState<string>(() => localStorage.getItem('zapier_webhook') ?? '');
+  const [supUrl, setSupUrlState] = useState<string>(() => localStorage.getItem('supabase_url') ?? '');
+  const [supKey, setSupKeyState] = useState<string>(() => localStorage.getItem('supabase_key') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
 
   // Persist prompts whenever they change
   useEffect(() => {
     try {
       localStorage.setItem('mcp_prompts', JSON.stringify(prompts));
+      localStorage.setItem('zapier_webhook', zapierWebhook);
+      localStorage.setItem('supabase_url', supUrl);
+      localStorage.setItem('supabase_key', supKey);
     } catch {}
-  }, [prompts]);
+  }, [prompts, zapierWebhook, supUrl, supKey]);
 
   const connect = useCallback(async (serverUrl: string) => {
     setIsConnecting(true);
@@ -182,6 +188,20 @@ export const useMCP = () => {
 
   const setGeminiKey = useCallback((k:string)=>{ localStorage.setItem('gemini_key',k); setGeminiKeyState(k); },[]);
 
+  const setZapierWebhook = useCallback((url: string) => {
+    localStorage.setItem('zapier_webhook', url);
+    setZapierWebhookState(url);
+  }, []);
+
+  const setSupabaseCredsLocal = useCallback((url: string, key: string) => {
+    setSupUrlState(url);
+    setSupKeyState(key);
+    try {
+      localStorage.setItem('supabase_url', url);
+      localStorage.setItem('supabase_key', key);
+    } catch {}
+  }, []);
+
   /** Send binary file resource */
   const sendFileResource = useCallback(async (connectionId: string, file: File) => {
     const arrayBuffer = await file.arrayBuffer();
@@ -251,6 +271,12 @@ export const useMCP = () => {
     setPrompts(prev => prev.filter(p => p.name !== name));
   }, []);
 
+  const triggerZapier = useCallback(async (connectionId: string, payload: any) => {
+    const webhookUrl = zapierWebhook;
+    if (!webhookUrl) throw new Error('Zapier webhook URL not set');
+    return invokeTool(connectionId, 'zapier_trigger_zap', { payload, webhookUrl });
+  }, [invokeTool, zapierWebhook]);
+
   return {
     connections,
     resources,
@@ -259,6 +285,9 @@ export const useMCP = () => {
     openAiKey,
     anthropicKey,
     geminiKey,
+    zapierWebhook,
+    supUrl,
+    supKey,
     isConnecting,
     connect,
     disconnect,
@@ -278,6 +307,9 @@ export const useMCP = () => {
     setOpenAiKey,
     setAnthropicKey,
     setGeminiKey,
+    setZapierWebhook,
+    setSupabaseCredsLocal,
+    triggerZapier,
     onNotification: (handler: (msg: MCPMessage) => void) => {
       const unsubs: Array<() => void> = [];
       (connections as any).forEach((c: any) => {

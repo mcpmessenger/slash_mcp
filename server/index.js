@@ -10,6 +10,12 @@ import jwt from 'jsonwebtoken';
 import { getSupabase, initSupabase } from './supabaseClient.js';
 import { z } from 'zod';
 import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL } from './config.js';
+import { registry } from './ToolRegistry.js';
+import './integrations/ZapierTool.js';
+import './integrations/OpenAITool.js';
+
+console.log('env OPENAI?', !!process.env.OPENAI_API_KEY);
+console.log('env ZAP?', process.env.ZAPIER_WEBHOOK_URL);
 
 const storageDir = path.resolve('storage');
 if (!fs.existsSync(storageDir)) {
@@ -67,9 +73,9 @@ let resourceCounter = 0;
 // --- Simple RBAC mapping (MVP) ---
 const ROLE_PERMS = {
   guest: [],
-  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
-  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
-  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat'],
+  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
+  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
+  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
 };
 
 function roleAllows(role, tool) {
@@ -270,6 +276,12 @@ wss.on('connection', (socket, req) => {
           return respond({ error: { code: -32013, message: `Role ${requesterRole} not permitted for ${toolName}` } });
         }
 
+        // Check registry first – if tool is registered there, delegate.
+        if (registry.has(toolName)) {
+          const rpcRes = await registry.invoke(toolName, parameters, { socket });
+          return respond(rpcRes);
+        }
+
         if (toolName === 'openai_chat') {
           const { prompt, apiKey, model } = parameters || {};
           if (!prompt) {
@@ -386,31 +398,33 @@ wss.on('connection', (socket, req) => {
       }
 
       case 'mcp_getCapabilities': {
+        const staticTools = [
+          {
+            name: 'shell_execute',
+            description: 'Execute shell command on server',
+            inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
+          },
+          {
+            name: 'openai_chat',
+            description: 'LLM chat completion (OpenAI)',
+            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+          },
+          {
+            name: 'anthropic_chat',
+            description: 'LLM chat completion (Claude)',
+            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+          },
+          {
+            name: 'gemini_chat',
+            description: 'LLM chat completion (Gemini)',
+            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+          },
+        ];
+        const toolList = [...staticTools, ...registry.list()];
         return respond({
           result: {
             resources: [],
-            tools: [
-              {
-                name: 'shell_execute',
-                description: 'Execute shell command on server',
-                inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
-              },
-              {
-                name: 'openai_chat',
-                description: 'LLM chat completion (OpenAI)',
-                inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
-              },
-              {
-                name: 'anthropic_chat',
-                description: 'LLM chat completion (Claude)',
-                inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
-              },
-              {
-                name: 'gemini_chat',
-                description: 'LLM chat completion (Gemini)',
-                inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
-              },
-            ],
+            tools: toolList,
             prompts: [
               { name: 'test', description: 'Run automated tests' },
               { name: 'describe this image', description: 'Generate a textual description for the selected image' },
@@ -545,3 +559,10 @@ if (process.env.NO_MCP_SERVER !== '1') {
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
 }
+
+// After imports, register a simple "echo" tool as example (can be replaced later)
+registry.register({
+  name: 'echo',
+  description: 'Return parameters unchanged — useful for testing',
+  handler: async (params) => ({ echo: params }),
+});

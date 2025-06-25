@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 // Load variables from .env if present
 dotenv.config();
 
+console.log('DEBUG OPENAI', !!process.env.OPENAI_API_KEY);
+console.log('DEBUG ZAP', process.env.ZAPIER_WEBHOOK_URL);
+
 // Application port for HTTP/WebSocket server
 export const PORT = process.env.PORT || 8080;
 
