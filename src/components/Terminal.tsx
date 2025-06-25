@@ -17,7 +17,9 @@ interface TerminalEntry {
 
 export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
-  const [currentCommand, setCurrentCommand] = useState('');
+  // Persistent template for LLM ↔︎ LLM hand-off
+  const DEFAULT_TEMPLATE = '@{connection} {resources},{tools},{prompts}';
+  const [currentCommand, setCurrentCommand] = useState<string>(DEFAULT_TEMPLATE);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini } = useMCP();
@@ -143,6 +145,8 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
     setHistory(prev => [...prev, command]);
     setHistoryIdx(-1);
+    // After execution, reset to template so users can build next command quickly
+    setCurrentCommand(DEFAULT_TEMPLATE);
   };
 
   const getCommandOutput = (cmd: string): { output: string; status: 'success' | 'error' } => {
@@ -176,7 +180,6 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     const cmd = currentCommand.trim();
     if (!cmd) return;
     executeCommand(cmd);
-    setCurrentCommand('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -194,6 +197,58 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
         setCurrentCommand(history[newIdx] ?? '');
         return newIdx;
       });
+    }
+  };
+
+  // --- Drag-and-drop support from Sidebar ---
+  const handleDragOverInput = (e: React.DragEvent<HTMLInputElement>) => {
+    // Allow dropping by preventing default
+    e.preventDefault();
+  };
+
+  const handleDropOnInput = (e: React.DragEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    try {
+      const { type, item } = JSON.parse(raw);
+      const applyValue = (placeholder: string, value: string, cmd: string) => {
+        if (cmd.includes(placeholder)) {
+          return cmd.replace(placeholder, value);
+        }
+        return cmd.trim() ? `${cmd} ${value}` : value;
+      };
+
+      let newCmd = currentCommand;
+
+      switch (type) {
+        case 'connection': {
+          const handle = item?.handle ?? '';
+          newCmd = applyValue('@{connection}', handle, newCmd);
+          break;
+        }
+        case 'tool': {
+          const val = item?.name ?? '';
+          newCmd = applyValue('{tools}', val, newCmd);
+          break;
+        }
+        case 'resource': {
+          const val = item?.uri ?? item?.name ?? '';
+          newCmd = applyValue('{resources}', val, newCmd);
+          break;
+        }
+        case 'prompt': {
+          const val = item?.name ?? '';
+          newCmd = applyValue('{prompts}', val, newCmd);
+          break;
+        }
+        default:
+          break;
+      }
+
+      setCurrentCommand(newCmd);
+    } catch {
+      // Ignore malformed payloads
     }
   };
 
@@ -248,6 +303,27 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
             </button>
           </div>
 
+          <form onSubmit={handleSubmit} className="p-3 bg-gray-900 border-b border-gray-700 flex items-center space-x-2">
+            <span className="text-green-400 font-mono">$</span>
+            <input
+              type="text"
+              autoFocus
+              value={currentCommand}
+              onChange={(e) => setCurrentCommand(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onDragOver={handleDragOverInput}
+              onDrop={handleDropOnInput}
+              className="flex-1 bg-transparent outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
+              placeholder="Type a command..."
+              list="cmd-suggestions"
+            />
+            <datalist id="cmd-suggestions">
+              {suggestions.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </form>
+
           <div ref={containerRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-2 bg-gray-950/60">
             {entries.map(entry => (
               <div key={entry.id}>
@@ -270,25 +346,6 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
               </div>
             ))}
           </div>
-
-          <form onSubmit={handleSubmit} className="p-3 bg-gray-900 border-t border-gray-700 flex items-center space-x-2">
-            <span className="text-green-400 font-mono">$</span>
-            <input
-              type="text"
-              autoFocus
-              value={currentCommand}
-              onChange={(e) => setCurrentCommand(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 bg-transparent outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
-              placeholder="Type a command..."
-              list="cmd-suggestions"
-            />
-            <datalist id="cmd-suggestions">
-              {suggestions.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
-          </form>
         </motion.div>
       </motion.div>
     </AnimatePresence>

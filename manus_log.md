@@ -53,4 +53,13 @@ Suggested Next Steps
 - Dark-mode form/label contrast tweak.
 - Pipeline: cleaned Vite build, resilient Puppeteer smoke test (build/serve/connect flow).
 
+### 2025-06-25 UI/UX overhaul
+- Added drag-and-drop workflow placeholders in terminal inputs
+- Implemented automatic connection to two local MCP servers on load
+- Sidebar is collapsed by default with arrow control; hamburger removed
+- Dual terminals now resizable via draggable divider; default 50/50 split
+- Resource panel supports file/image upload; images preview; Supabase upload when creds present
+- Settings page cleaned (removed Quick Actions, Theme, Connection count); added resource/tool counts and Supabase refresh
+- Smoke test passes
+
 *Continue appending notes here with each significant action or decision.* 

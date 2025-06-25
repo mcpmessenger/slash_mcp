@@ -3,11 +3,9 @@ import { motion } from 'framer-motion';
 import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
-import { useTheme } from '../hooks/useTheme';
 
 export const Settings: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
-  const { connections, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds } = useMCP();
+  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources } = useMCP();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
   const [claudeK, setClaudeK] = React.useState(anthropicKey);
@@ -29,6 +27,7 @@ export const Settings: React.FC = () => {
     if (!connections[0]) return;
     try {
       await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKey.trim());
+      await listResources(connections[0].id);
       setSbSaved(true);
       setTimeout(()=>setSbSaved(false),1500);
     } catch (err) {
@@ -51,6 +50,30 @@ export const Settings: React.FC = () => {
         </div>
 
         <div className="space-y-6">
+          {/* Overview Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white dark:bg-dark-800 rounded-lg p-4 shadow flex flex-col items-center">
+              <Server className="w-6 h-6 text-primary-600 dark:text-primary-400 mb-2" />
+              <span className="text-2xl font-bold">{connections.length}</span>
+              <span className="text-xs text-gray-500">Connections</span>
+            </div>
+            <div className="bg-white dark:bg-dark-800 rounded-lg p-4 shadow flex flex-col items-center">
+              <Database className="w-6 h-6 text-primary-600 dark:text-primary-400 mb-2" />
+              <span className="text-2xl font-bold">{resources.length}</span>
+              <span className="text-xs text-gray-500">Resources</span>
+            </div>
+            <div className="bg-white dark:bg-dark-800 rounded-lg p-4 shadow flex flex-col items-center">
+              <Wrench className="w-6 h-6 text-primary-600 dark:text-primary-400 mb-2" />
+              <span className="text-2xl font-bold">{tools.length}</span>
+              <span className="text-xs text-gray-500">Tools</span>
+            </div>
+            <div className="bg-white dark:bg-dark-800 rounded-lg p-4 shadow flex flex-col items-center">
+              <MessageSquare className="w-6 h-6 text-primary-600 dark:text-primary-400 mb-2" />
+              <span className="text-2xl font-bold">{prompts.length}</span>
+              <span className="text-xs text-gray-500">Prompts</span>
+            </div>
+          </div>
+
           {/* Server Configuration */}
           <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -70,26 +93,6 @@ export const Settings: React.FC = () => {
                   placeholder="ws://localhost:8080"
                 />
               </div>
-            </div>
-          </section>
-
-          {/* Theme Settings */}
-          <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4">Theme Preferences</h2>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-700 dark:text-gray-300">Dark Mode</span>
-              <button
-                onClick={toggleTheme}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  theme === 'dark' ? 'bg-primary-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
             </div>
           </section>
 
@@ -141,20 +144,6 @@ export const Settings: React.FC = () => {
             </div>
           </section>
 
-          {/* Connection Status */}
-          <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Database className="w-5 h-5" />
-              Connection Status
-            </h2>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-700 dark:text-gray-300">Active Connections</span>
-              <span className="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full">
-                {connections.length}
-              </span>
-            </div>
-          </section>
-
           {/* Storage Settings */}
           <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -172,26 +161,6 @@ export const Settings: React.FC = () => {
               </div>
               <button onClick={handleSaveSupabase} className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded">Save Supabase</button>
               {sbSaved && <p className="text-green-500 text-sm text-center">Supabase configured!</p>}
-            </div>
-          </section>
-
-          {/* Quick Actions */}
-          <section className="bg-white dark:bg-dark-800 rounded-lg p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Wrench className="w-5 h-5" />
-              Quick Actions
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button className="p-4 text-left rounded-lg border border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 transition-colors">
-                <MessageSquare className="w-5 h-5 mb-2 text-primary-600 dark:text-primary-400" />
-                <h3 className="font-medium">Launch Terminal</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Open a new terminal instance</p>
-              </button>
-              <Link to="/chat" className="p-4 text-left rounded-lg border border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 transition-colors block">
-                <Server className="w-5 h-5 mb-2 text-primary-600 dark:text-primary-400" />
-                <h3 className="font-medium">Manage Connections</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">View and manage server connections</p>
-              </Link>
             </div>
           </section>
         </div>

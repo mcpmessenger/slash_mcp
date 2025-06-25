@@ -84,4 +84,48 @@ The backend executes only a small set of safe commands by default:
 `ping`, `dir`, `ls`, `pwd`, `whoami`, `date`, `echo`, `ipconfig`.
 
 The Terminal auto-completes these and the server will reject everything else (`Command not allowed`).  
-`ping` count flag is automatically converted (`-c` ↔ `-n`) depending on the OS. 
+`ping` count flag is automatically converted (`-c` ↔ `-n`) depending on the OS.
+
+## Shell sandbox defaults (dev)
+
+The backend exposes a `shell_execute` tool that is **whitelisted** for safety.  By default (and in CI) it uses a minimal container image, but if Docker is not available it falls back to the host shell.
+
+Allowed commands as of 2025-06-25:
+
+```
+ping dir ls pwd whoami date echo ipconfig
+id uname cat head tail env who ps
+```
+
+If you need more, add them to `ALLOWED_CMDS` in `server/index.js`.
+
+> Tip: set `MCP_SHELL_IMAGE` to change the container (e.g. `debian:stable-slim`). 
+
+## New Features (2025-06-25)
+
+1. Automatic Dual Connections
+   The client now auto-connects to `ws://localhost:8080` until **two** live connections are available. You land directly in the dual-terminal view.
+
+2. Persistent Command Template
+   Each terminal input starts with
+   ```
+   @{connection} {resources},{tools},{prompts}
+   ```
+   • Drag a connection/tool/resource/prompt from the sidebar to replace its placeholder.
+
+3. Drag-and-Drop Uploads
+   • Drag any file onto the Resources panel (or use **Add Resource**) to upload.
+   • Images render previews; all uploads become draggable resources.
+   • If Supabase creds are set (Settings → Supabase), uploads are stored in your bucket.
+
+4. Collapsible Sidebar & Resizable Terminals
+   • Sidebar is collapsed by default—click the ❯ rail to show/hide.
+   • Terminals split 50/50; drag the divider to resize.
+
+## Quick Start
+```bash
+npm install
+npm run backend   # starts MCP server at ws://localhost:8080
+npm run dev       # starts Vite dev
+```
+Visit http://localhost:5173/chat – two terminals will appear; sidebar is hidden but accessible. 

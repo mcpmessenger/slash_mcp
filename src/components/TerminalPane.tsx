@@ -14,7 +14,9 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
   const { connections, invokeTool, invokeChat, invokeClaude, invokeGemini, onNotification, forwardRequest } = useMCP();
   const [connId, setConnId] = useState<string>(initialConnId);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [current, setCurrent] = useState('');
+  // Persistent template with placeholders
+  const DEFAULT_TEMPLATE = '@{connection} {resources},{tools},{prompts}';
+  const [current, setCurrent] = useState<string>(DEFAULT_TEMPLATE);
   const containerRef = useRef<HTMLDivElement>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -153,7 +155,51 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
     const cmd = current.trim();
     if (!cmd) return;
     execute(cmd);
-    setCurrent('');
+    setCurrent(DEFAULT_TEMPLATE);
+  };
+
+  const handleDragOverInput = (e: React.DragEvent<HTMLInputElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDropOnInput = (e: React.DragEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    try {
+      const { type, item } = JSON.parse(raw);
+      const applyValue = (placeholder: string, value: string, cmd: string) => {
+        if (cmd.includes(placeholder)) return cmd.replace(placeholder, value);
+        return cmd.trim() ? `${cmd} ${value}` : value;
+      };
+
+      let newCmd = current;
+      switch (type) {
+        case 'connection': {
+          const handle = item?.handle ?? '';
+          newCmd = applyValue('@{connection}', handle, newCmd);
+          break;
+        }
+        case 'tool': {
+          const val = item?.name ?? '';
+          newCmd = applyValue('{tools}', val, newCmd);
+          break;
+        }
+        case 'resource': {
+          const val = item?.uri ?? item?.name ?? '';
+          newCmd = applyValue('{resources}', val, newCmd);
+          break;
+        }
+        case 'prompt': {
+          const val = item?.name ?? '';
+          newCmd = applyValue('{prompts}', val, newCmd);
+          break;
+        }
+        default:
+          break;
+      }
+      setCurrent(newCmd);
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -215,6 +261,22 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
           </select>
         </div>
       </div>
+      <form onSubmit={handleSubmit} className="p-2 bg-gray-900 border-b border-gray-700 flex items-center space-x-2">
+        <span className="text-green-400 font-mono">$</span>
+        <input
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onDragOver={handleDragOverInput}
+          onDrop={handleDropOnInput}
+          placeholder="Type..."
+          className="flex-1 bg-transparent outline-none text-gray-100 text-sm"
+          list="suggestions"
+        />
+        <datalist id="suggestions">
+          {suggestions.map(s => <option key={s} value={s} />)}
+        </datalist>
+      </form>
       <div ref={containerRef} className="flex-1 overflow-y-auto p-3 font-mono text-sm space-y-2 bg-gray-900 dark:bg-gray-950/80 text-gray-200">
         {entries.map(en => (
           <div key={en.id}>
@@ -235,20 +297,6 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="p-2 bg-gray-900 flex items-center space-x-2">
-        <span className="text-green-400 font-mono">$</span>
-        <input
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type..."
-          className="flex-1 bg-transparent outline-none text-gray-100 text-sm"
-          list="suggestions"
-        />
-        <datalist id="suggestions">
-          {suggestions.map(s => <option key={s} value={s} />)}
-        </datalist>
-      </form>
     </div>
   );
 }; 

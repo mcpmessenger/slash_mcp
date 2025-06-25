@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, Circle } from 'lucide-react';
 import { useMCP } from '../context/MCPContext';
 
-export const Sidebar: React.FC = () => {
-  const { connections, resources, tools, prompts, connect, listResources } = useMCP();
+export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> = ({ collapsed=false, onToggle }) => {
+  const { connections, resources, tools, prompts, connect, listResources, sendFileResource } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
@@ -23,11 +23,23 @@ export const Sidebar: React.FC = () => {
 
   return (
     <motion.aside 
-      className="w-80 bg-white/50 dark:bg-black/50 backdrop-blur-md border-r border-gray-200 dark:border-dark-700 p-4"
-      initial={{ x: -320 }}
-      animate={{ x: 0 }}
-      transition={{ duration: 0.5 }}
+      className={`relative bg-white/50 dark:bg-black/50 backdrop-blur-md border-r border-gray-200 dark:border-dark-700 overflow-y-auto transition-all duration-300 ${collapsed ? 'w-6 p-0' : 'w-80 p-4'}`}
+      initial={false}
+      animate={{}}
     >
+      {/* collapse/expand arrow */}
+      {!collapsed && (
+        <button onClick={onToggle} className="absolute -right-3 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center shadow">
+          <span className="sr-only">Collapse</span>
+          ❮
+        </button>
+      )}
+      {collapsed && (
+        <button onClick={onToggle} className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-r w-6 h-12 flex items-center justify-center shadow">
+          <span className="sr-only">Expand</span>
+          ❯
+        </button>
+      )}
       <div className="space-y-2">
         {sections.map((section) => (
           <div key={section.id}>
@@ -64,61 +76,132 @@ export const Sidebar: React.FC = () => {
                   className="overflow-hidden"
                 >
                   <div className="mt-2 ml-4 space-y-2">
-                    {section.id === 'connections' && connections.map((conn) => (
-                      <div key={conn.id} className="flex items-center space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800">
+                    {section.id === 'connections' && connections.map((conn, idx) => (
+                      <div
+                        key={conn.id}
+                        draggable
+                        onDragStart={(e) => {
+                          const handle = `@${idx + 1}`;
+                          e.dataTransfer.setData(
+                            'application/json',
+                            JSON.stringify({ type: 'connection', item: { handle, id: conn.id, name: conn.server.name } })
+                          );
+                        }}
+                        className="flex items-center space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
+                      >
                         <Circle className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
                         <span className="text-sm text-gray-700 dark:text-white">{conn.server.name}</span>
                       </div>
                     ))}
                     
-                    {section.id === 'resources' && resources.map((resource, idx) => (
+                    {section.id === 'resources' && (
                       <div
-                        key={idx}
-                        className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative cursor-pointer hover:ring-1 hover:ring-primary-400"
-                        onClick={() => {
-                          const url = (resource.data as string) || (resource.path as any) || (resource.url as any) || '';
-                          if (url) window.open(url, '_blank');
-                        }}
-                        onMouseEnter={() => {
-                          if (typeof resource.data === 'string' && resource.mimeType?.startsWith('image/')) {
-                            setHoveredImg(resource.data);
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={async (e) => {
+                          e.preventDefault();
+                          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                            const file = e.dataTransfer.files[0];
+                            if (connections[0]) {
+                              try {
+                                await sendFileResource(connections[0].id, file);
+                              } catch (err) {
+                                console.error('Upload failed', err);
+                              }
+                            } else {
+                              alert('Connect to an MCP server first');
+                            }
                           }
                         }}
-                        onMouseLeave={() => setHoveredImg(null)}
+                        className="space-y-2"
                       >
-                        <div className="text-sm font-medium text-gray-800 dark:text-white">{resource.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-dark-400 truncate max-w-[180px]">{resource.uri}</div>
+                        {resources.map((resource, idx) => (
+                          <div
+                            key={idx}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(
+                                'application/json',
+                                JSON.stringify({ type: 'resource', item: resource })
+                              );
+                            }}
+                            className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative cursor-pointer hover:ring-1 hover:ring-primary-400"
+                            onClick={() => {
+                              const url = (resource.data as string) || (resource.path as any) || (resource.url as any) || '';
+                              if (url) window.open(url, '_blank');
+                            }}
+                            onMouseEnter={() => {
+                              if (typeof resource.data === 'string' && resource.mimeType?.startsWith('image/')) {
+                                setHoveredImg(resource.data);
+                              }
+                            }}
+                            onMouseLeave={() => setHoveredImg(null)}
+                          >
+                            <div className="text-sm font-medium text-gray-800 dark:text-white">{resource.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-dark-400 truncate max-w-[180px]">{resource.uri}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                     
                     {section.id === 'tools' && tools.map((tool, idx) => (
-                      <div key={idx} className="p-2 rounded bg-gray-50 dark:bg-dark-800">
+                      <div
+                        key={idx}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(
+                            'application/json',
+                            JSON.stringify({ type: 'tool', item: tool })
+                          );
+                        }}
+                        className="p-2 rounded bg-gray-50 dark:bg-dark-800"
+                      >
                         <div className="text-sm font-medium text-gray-800 dark:text-white">{tool.name}</div>
                         <div className="text-xs text-gray-500 dark:text-dark-400">{tool.description}</div>
                       </div>
                     ))}
                     
                     {section.id === 'prompts' && prompts.map((prompt, idx) => (
-                      <div key={idx} className="p-2 rounded bg-gray-50 dark:bg-dark-800">
+                      <div
+                        key={idx}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData(
+                            'application/json',
+                            JSON.stringify({ type: 'prompt', item: prompt })
+                          );
+                        }}
+                        className="p-2 rounded bg-gray-50 dark:bg-dark-800"
+                      >
                         <div className="text-sm font-medium text-gray-800 dark:text-white">{prompt.name}</div>
                         <div className="text-xs text-gray-500 dark:text-dark-400">{prompt.description}</div>
                       </div>
                     ))}
 
-                    <motion.button
-                      onClick={() => {
-                        if (section.id === 'connections') {
-                          const url = window.prompt('Enter MCP server URL', 'ws://localhost:8080');
-                          if (url && url.trim()) connect(url.trim());
-                        }
-                      }}
-                      className="w-full flex items-center justify-center space-x-2 p-2 rounded border-2 border-dashed border-gray-300 dark:border-dark-600 hover:border-primary-400 dark:hover:border-white transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Plus className="w-4 h-4 dark:text-white" />
-                      <span className="text-sm dark:text-white">Add {section.label.slice(0, -1)}</span>
-                    </motion.button>
+                    {(section.id === 'connections' || section.id === 'resources') && (
+                      <motion.button
+                        onClick={async () => {
+                          if (section.id === 'connections') {
+                            const url = window.prompt('Enter MCP server URL', 'ws://localhost:8080');
+                            if (url && url.trim()) connect(url.trim());
+                          } else if (section.id === 'resources') {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.onchange = async () => {
+                              if (input.files && input.files[0] && connections[0]) {
+                                await sendFileResource(connections[0].id, input.files[0]);
+                              }
+                            };
+                            input.click();
+                          }
+                        }}
+                        className="w-full flex items-center justify-center space-x-2 p-2 rounded border-2 border-dashed border-gray-300 dark:border-dark-600 hover:border-primary-400 dark:hover:border-white transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Plus className="w-4 h-4 dark:text-white" />
+                        <span className="text-sm dark:text-white">Add {section.label.slice(0, -1)}</span>
+                      </motion.button>
+                    )}
                   </div>
                 </motion.div>
               )}
