@@ -1,4 +1,3 @@
-
 ## Technical Architecture Assessment and Recommendations
 
 ### 1. Enhancing AI-to-AI Communication
@@ -65,9 +64,6 @@ graph TD
 *   **Concurrency:** The Node.js event loop is single-threaded, but I/O operations (like WebSocket communication and file I/O) are handled asynchronously. For CPU-bound tasks (e.g., complex AI reasoning within the server if it were to host AI models directly), consider worker threads or offloading to dedicated services.
 *   **Error Handling:** Robust error handling for message forwarding failures, agent unavailability, and tool invocation errors is critical for stable AI-to-AI communication.
 
-
-
-
 ### 2. Security and Sandboxing
 
 The current `slash_mcp` implementation uses a whitelist for `shell_execute` commands, which is a good starting point for security. However, for an MVP that aims to facilitate AI-to-AI communication, especially in a terminal context, more robust security measures are paramount to prevent misuse and ensure system integrity.
@@ -115,9 +111,6 @@ For any multi-user or multi-agent system, authentication and authorization are c
     *   If AI agents need to use external APIs (e.g., OpenAI, Anthropic, Gemini), their API keys should never be hardcoded or sent directly from the client.
     *   Instead, the server should manage these credentials securely (e.g., using environment variables, a secrets management service, or a secure configuration file).
     *   The `mcp_invokeTool` calls for LLMs should only pass the prompt and model, with the server injecting the appropriate API key based on the calling agent's identity or configuration.
-
-
-
 
 ### 3. Resource Management
 
@@ -171,9 +164,6 @@ The `slash_mcp` already implements real-time stdout streaming via incremental JS
     *   The current `mcp_streamOutput` is primarily server-to-client. For truly interactive AI-to-AI communication, consider scenarios where one AI might stream partial input to another, and the second AI responds incrementally.
     *   This would involve extending the `mcp_streamOutput` concept to allow clients to send stream chunks as well, potentially with a `mcp_streamInput` method.
 
-
-
-
 ### 5. MVP Core Features Definition
 
 Based on the MCP-first ethos and the overarching goal of connecting two terminals for AI-to-AI communication, the following core features are proposed for the Minimum Viable Product (MVP):
@@ -218,4 +208,41 @@ Based on the MCP-first ethos and the overarching goal of connecting two terminal
 *   **Scalability Features (Load Balancing, Horizontal Scaling):** The MVP will focus on functional correctness for a small number of concurrent connections.
 
 By focusing on these core features, the MVP will clearly demonstrate the value proposition of `slash_mcp` as a platform for AI-to-AI communication in a terminal environment, while maintaining the MCP-first ethos.
+
+---
+
+## 6. MCP Protocol Formalisation & Developer Documentation (2025-06-25)
+
+The slash_mcp codebase now closely follows the MCP spec, but we recommend tightening the last mile of compliance:
+
+* **Explicit Parameter Schemas** – Describe every method's params/return type with TypeScript `interface`s and publish machine-readable JSON-Schema alongside runtime validation (e.g. with `zod`).
+* **Granular Error Codes** – Map common failure modes to distinct JSON-RPC error objects (`code`, `message`, `data`) so client libraries can branch reliably.
+* **Living Docs** – Generate API docs (e.g. `typedoc` + `redoc`) straight from the source and host them under `/docs`; include examples for each method.
+
+## 7. Tooling & Resource Management Roadmap
+
+* **Persistent Storage** – Finish Supabase integration by persisting metadata (`resources` table) and serving files through signed URLs.
+* **Advanced Tools**
+  * `llm_chat` – Bridge to OpenAI / Gemini via `mcp_invokeTool`.
+  * External APIs – Blueprint generic REST proxy tool so agents can hit arbitrary services.
+  * **Plugin Framework** – Expose a declarative manifest so devs can drop `tools/<name>.js` and auto-register.
+* **Resource Browser UX** – Add preview modal, drag-and-drop upload, and server-side pagination.
+
+## 8. Security Hardening
+
+* **Containerise Commands** – Default to Docker busybox; add namespace fallback for prod clusters without Docker.
+* **AuthN / AuthZ** – Promote optional JWT to mandatory in prod; wire through Supabase auth for HTTP fallback; refine RBAC matrix.
+* **Input Validation** – Centralise param validation with the same schemas from §6.
+
+## 9. Deployment & DX
+
+* **One-shot Compose** – Provide `docker-compose.yml` with backend, nginx static front, and optional Supabase.
+* **Real-time Streaming** – Upgrade `mcp_streamOutput` to chunked notifications to minimise latency on long jobs.
+* **CLI Starter** – Ship a minimal `npx slash-mcp` scaffolder for new projects.
+
+## 10. Community & Governance
+
+* Publish CONTRIBUTING.md and adopt Conventional Commits.
+* Join the upstream MCP SIG, submit lessons learned, and propose schema PRs for streaming / auth.
+* Host fortnightly demos to attract contributors.
 
