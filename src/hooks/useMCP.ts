@@ -7,6 +7,9 @@ export const useMCP = () => {
   const [resources, setResources] = useState<MCPResource[]>([]);
   const [tools, setTools] = useState<MCPTool[]>([]);
   const [prompts, setPrompts] = useState<MCPPrompt[]>([]);
+  const [openAiKey, setOpenAiKeyState] = useState<string>(() => localStorage.getItem('openai_key') ?? '');
+  const [anthropicKey, setAnthropicKeyState] = useState<string>(() => localStorage.getItem('anthropic_key') ?? '');
+  const [geminiKey, setGeminiKeyState] = useState<string>(() => localStorage.getItem('gemini_key') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
 
   const connect = useCallback(async (serverUrl: string) => {
@@ -15,10 +18,14 @@ export const useMCP = () => {
       const client = new MCPWebSocketClient(serverUrl);
       await client.waitUntilOpen();
 
+      const baseName = serverUrl.replace(/^wss?:\/\//, '').replace(/\/$/, '');
+      const dupCount = connections.filter(c => c.server.name.startsWith(baseName)).length;
+      const displayName = dupCount === 0 ? baseName : `${baseName} #${dupCount+1}`;
+
       const connection: MCPConnection & { client: MCPWebSocketClient } = {
         id: client.id,
         server: {
-          name: serverUrl.replace(/^wss?:\/\//, ''),
+          name: displayName,
           version: 'unknown',
           capabilities: {
             resources: true,
@@ -33,6 +40,11 @@ export const useMCP = () => {
       } as any;
 
       setConnections(prev => [...prev, connection]);
+
+      // Register connectionId with backend for forwarding capabilities
+      try {
+        await client.send({ jsonrpc: '2.0', id: Date.now(), method: 'mcp_register', params: { connectionId: client.id } });
+      } catch {}
 
       // Fetch capabilities
       try {
@@ -65,7 +77,7 @@ export const useMCP = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [connections]);
 
   const disconnect = useCallback((connectionId: string) => {
     setConnections(prev => {
@@ -95,6 +107,7 @@ export const useMCP = () => {
     };
     const response = await sendMessage(connectionId, message);
     if ('result' in response && response.result?.resourceId) {
+      const { url } = response.result || {};
       // Add to local resources list
       setResources(prev => [
         ...prev,
@@ -103,7 +116,7 @@ export const useMCP = () => {
           name: `Text Resource ${prev.length + 1}`,
           description: 'User provided text',
           mimeType: 'text/plain',
-          data: content,
+          data: url ?? content,
         },
       ]);
     }
@@ -120,6 +133,36 @@ export const useMCP = () => {
     };
     return sendMessage(connectionId, message);
   }, [sendMessage]);
+
+  /** Convenience helper for OpenAI chat */
+  const invokeChat = useCallback(async (connectionId: string, prompt: string) => {
+    if (!openAiKey) {
+      throw new Error('OpenAI API key not set');
+    }
+    return invokeTool(connectionId, 'openai_chat', { prompt, apiKey: openAiKey });
+  }, [invokeTool, openAiKey]);
+
+  const invokeClaude = useCallback(async (connectionId: string, prompt: string) => {
+    if (!anthropicKey) throw new Error('Anthropic API key not set');
+    return invokeTool(connectionId, 'anthropic_chat', { prompt, apiKey: anthropicKey });
+  }, [invokeTool, anthropicKey]);
+
+  const invokeGemini = useCallback(async (connectionId: string, prompt: string) => {
+    if (!geminiKey) throw new Error('Gemini API key not set');
+    return invokeTool(connectionId, 'gemini_chat', { prompt, apiKey: geminiKey });
+  }, [invokeTool, geminiKey]);
+
+  const setOpenAiKey = useCallback((key: string) => {
+    localStorage.setItem('openai_key', key);
+    setOpenAiKeyState(key);
+  }, []);
+
+  const setAnthropicKey = useCallback((key: string) => {
+    localStorage.setItem('anthropic_key', key);
+    setAnthropicKeyState(key);
+  }, []);
+
+  const setGeminiKey = useCallback((k:string)=>{ localStorage.setItem('gemini_key',k); setGeminiKeyState(k); },[]);
 
   /** Send binary file resource */
   const sendFileResource = useCallback(async (connectionId: string, file: File) => {
@@ -156,18 +199,36 @@ export const useMCP = () => {
     return response;
   }, [sendMessage]);
 
+  /** Forward arbitrary request to another connection via server */
+  const forwardRequest = useCallback(async (originConnId: string, targetConnId: string, inner: MCPMessage) => {
+    const outer: MCPMessage = {
+      jsonrpc: '2.0', id: Date.now(), method: 'mcp_forward', params: { targetConnectionId: targetConnId, request: inner }
+    };
+    return sendMessage(originConnId, outer);
+  }, [sendMessage]);
+
   return {
     connections,
     resources,
     tools,
     prompts,
+    openAiKey,
+    anthropicKey,
+    geminiKey,
     isConnecting,
     connect,
     disconnect,
     sendMessage,
     sendTextResource,
     invokeTool,
+    invokeChat,
+    invokeClaude,
+    invokeGemini,
     sendFileResource,
+    forwardRequest,
+    setOpenAiKey,
+    setAnthropicKey,
+    setGeminiKey,
     onNotification: (handler: (msg: MCPMessage) => void) => {
       const unsubs: Array<() => void> = [];
       (connections as any).forEach((c: any) => {

@@ -5,10 +5,14 @@ import { Sidebar } from './components/Sidebar';
 import { MainContent } from './components/MainContent';
 import { Terminal } from './components/Terminal';
 import { MultiClientManager } from './components/MultiClientManager';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { OpposingTerminals } from './components/OpposingTerminals';
 
 function App() {
   const [showTerminal, setShowTerminal] = React.useState(false);
   const [showClients, setShowClients] = React.useState(false);
+  const [showApiKey, setShowApiKey] = React.useState(false);
+  const [showOpposing, setShowOpposing] = React.useState(false);
 
   return (
     <MCPProvider>
@@ -16,6 +20,8 @@ function App() {
       <Header
         onToggleTerminal={() => setShowTerminal(true)}
         onToggleClients={() => setShowClients(true)}
+        onToggleApiKey={() => setShowApiKey(true)}
+        onToggleOpposing={() => setShowOpposing(true)}
       />
       <div className="flex h-[calc(100vh-80px)]">
         <Sidebar />
@@ -24,6 +30,8 @@ function App() {
 
       {showTerminal && <Terminal onClose={() => setShowTerminal(false)} />}
       {showClients && <MultiClientManager onClose={() => setShowClients(false)} />}
+      {showApiKey && <ApiKeyModal onClose={() => setShowApiKey(false)} />}
+      {showOpposing && <OpposingTerminals onClose={() => setShowOpposing(false)} />}
     </div>
     </MCPProvider>
   );

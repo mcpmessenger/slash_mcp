@@ -20,7 +20,7 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const [currentCommand, setCurrentCommand] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { connections, invokeTool, onNotification } = useMCP();
+  const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini } = useMCP();
 
   // history handling
   const [history, setHistory] = useState<string[]>([]);
@@ -28,9 +28,12 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
   const [selectedConn, setSelectedConn] = useState<string | null>(null);
 
+  type Mode = 'shell' | 'chat' | 'claude' | 'gemini';
+  const [mode, setMode] = useState<Mode>('shell');
+
   const currentTargetId = selectedConn ?? connections[0]?.id;
 
-  const suggestions = ['ping', 'dir', 'ls', 'pwd', 'whoami', 'date', 'echo', 'ipconfig'];
+  const suggestions = ['@2 ls', 'chat "Hello world"', 'claude "Hi"', 'gemini "Idea"', 'ping', 'dir', 'ls'];
 
   useEffect(() => {
     if (!selectedConn && connections.length > 0) {
@@ -67,12 +70,59 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     const entry: TerminalEntry = { id, command, output: '', status: 'running' };
     setEntries(prev => [...prev, entry]);
 
-    // If a real MCP connection is active, execute via backend
+    // If a real MCP connection is active, decide which tool to invoke
     const targetId = currentTargetId;
+
+    // Detect custom verbs
+    const parts = command.trim().split(' ');
+    const verb = parts[0];
+
+    // @routing
+    if (verb.startsWith('@')) {
+      const targetHandle = verb.slice(1);
+      const targetConn = connections.find((c, idx) => `@${idx+1}`===verb || c.server.name === targetHandle || c.server.name.startsWith(targetHandle));
+      if (!targetConn) {
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Target not found', status:'error'}:e));
+      } else {
+        const restParts = parts.slice(1);
+        const secondVerb = restParts[0];
+        let innerMsg: any;
+        if (secondVerb === 'chat') {
+          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g,'');
+          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'openai_chat', parameters:{ prompt } } };
+        } else if (secondVerb === 'claude') {
+          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g,'');
+          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'anthropic_chat', parameters:{ prompt } } };
+        } else {
+          const commandStr = restParts.join(' ');
+          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'shell_execute', parameters:{ command: commandStr } } };
+        }
+
+        forwardRequest(currentTargetId!, targetConn.id, innerMsg);
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:`Forwarded to ${targetConn.server.name}`, status:'success'}:e));
+      }
+      return;
+    }
 
     if (targetId) {
       try {
-        const res = await invokeTool(targetId, 'shell_execute', { command });
+        let res;
+        if (verb === 'claude') {
+          const prompt = command.slice(6).trim().replace(/^"|"$/g, '');
+          res = await invokeClaude(targetId, prompt);
+        } else if (verb === 'gemini') {
+          const prompt = command.slice(6).trim().replace(/^"|"$/g, '');
+          res = await invokeGemini(targetId, prompt);
+        } else if (mode === 'chat') {
+          res = await invokeChat(targetId, command);
+        } else if (mode === 'claude') {
+          res = await invokeClaude(targetId, command);
+        } else if (mode === 'gemini') {
+          res = await invokeGemini(targetId, command);
+        } else {
+          res = await invokeTool(targetId, 'shell_execute', { command });
+        }
+
         if ('result' in res && res.result?.execId) {
           entry.execId = res.result.execId;
           setEntries(prev => prev.map(e => e.id === id ? { ...e, execId: res.result.execId } : e));
@@ -165,17 +215,30 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
           <div className="flex items-center justify-between p-3 border-b border-gray-700 space-x-4">
             <span className="text-sm font-mono text-green-400">guest@slash-mcp:~$</span>
 
-            {connections.length > 1 && (
+            <div className="flex items-center space-x-2">
+              {connections.length > 1 && (
+                <select
+                  value={selectedConn ?? ''}
+                  onChange={(e) => setSelectedConn(e.target.value)}
+                  className="bg-gray-800 text-gray-100 text-xs border border-gray-600 rounded px-2 py-1 focus:outline-none"
+                >
+                  {connections.map((c) => (
+                    <option key={c.id} value={c.id}>{c.server.name}</option>
+                  ))}
+                </select>
+              )}
+
               <select
-                value={selectedConn ?? ''}
-                onChange={(e) => setSelectedConn(e.target.value)}
+                value={mode}
+                onChange={(e)=>setMode(e.target.value as Mode)}
                 className="bg-gray-800 text-gray-100 text-xs border border-gray-600 rounded px-2 py-1 focus:outline-none"
               >
-                {connections.map((c) => (
-                  <option key={c.id} value={c.id}>{c.server.name}</option>
-                ))}
+                <option value="shell">shell</option>
+                <option value="chat">GPT</option>
+                <option value="claude">Claude</option>
+                <option value="gemini">Gemini</option>
               </select>
-            )}
+            </div>
             <button
               onClick={onClose}
               className="p-1 rounded hover:bg-gray-700 transition-colors"

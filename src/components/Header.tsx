@@ -7,9 +7,11 @@ import { Settings, Activity, Terminal as TerminalIcon, Users } from 'lucide-reac
 interface HeaderProps {
   onToggleTerminal: () => void;
   onToggleClients: () => void;
+  onToggleApiKey: () => void;
+  onToggleOpposing: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onToggleTerminal, onToggleClients }) => {
+export const Header: React.FC<HeaderProps> = ({ onToggleTerminal, onToggleClients, onToggleApiKey, onToggleOpposing }) => {
   return (
     <motion.header 
       className="bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-700 px-6 py-4"
@@ -53,11 +55,13 @@ export const Header: React.FC<HeaderProps> = ({ onToggleTerminal, onToggleClient
             className="p-2 rounded-lg bg-gray-100 dark:bg-dark-800 hover:shadow-glow dark:hover:shadow-glow-dark transition-all duration-300"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={onToggleOpposing}
           >
             <Activity className="w-5 h-5 text-gray-600 dark:text-dark-300" />
           </motion.button>
           
           <motion.button
+            onClick={onToggleApiKey}
             className="p-2 rounded-lg bg-gray-100 dark:bg-dark-800 hover:shadow-glow dark:hover:shadow-glow-dark transition-all duration-300"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
