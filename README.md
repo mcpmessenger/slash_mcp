@@ -129,3 +129,13 @@ npm run backend   # starts MCP server at ws://localhost:8080
 npm run dev       # starts Vite dev
 ```
 Visit http://localhost:5173/chat – two terminals will appear; sidebar is hidden but accessible. 
+
+## 2025-06-25 Upgrades
+
+* Centralised server config (`server/config.js`) – secrets & whitelist via env vars (see `env.example`).
+* Graceful shutdown & `/healthz` route for ops.
+* Dynamic drag-and-drop prompt library:
+  * Sidebar → Prompts panel supports Add, Drag, Delete.
+  * Prompts persist in `localStorage`.
+* Cross-connection forwarding reworked – streamed stdout (`mcp_streamOutput`) now relays back to the origin so `@2 ping 8.8.8.8` works between browser windows.
+* Starter prompts `test` and `describe this image` included from backend capabilities.

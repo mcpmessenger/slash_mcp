@@ -1,0 +1,23 @@
+{
+  "$ref": "#/definitions/mcp_setStorageCreds",
+  "definitions": {
+    "mcp_setStorageCreds": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "key"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

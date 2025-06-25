@@ -4,7 +4,7 @@ import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, C
 import { useMCP } from '../context/MCPContext';
 
 export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> = ({ collapsed=false, onToggle }) => {
-  const { connections, resources, tools, prompts, connect, listResources, sendFileResource } = useMCP();
+  const { connections, resources, tools, prompts, connect, listResources, sendFileResource, addPrompt, removePrompt } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
@@ -170,14 +170,27 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                             JSON.stringify({ type: 'prompt', item: prompt })
                           );
                         }}
-                        className="p-2 rounded bg-gray-50 dark:bg-dark-800"
+                        className="group p-2 rounded bg-gray-50 dark:bg-dark-800 flex items-start justify-between space-x-2"
                       >
-                        <div className="text-sm font-medium text-gray-800 dark:text-white">{prompt.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-dark-400">{prompt.description}</div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-800 dark:text-white">{prompt.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-dark-400 max-w-[150px] truncate">{prompt.description}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const ok = window.confirm(`Delete prompt "${prompt.name}"?`);
+                            if (ok) {
+                              removePrompt(prompt.name);
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
 
-                    {(section.id === 'connections' || section.id === 'resources') && (
+                    {(section.id === 'connections' || section.id === 'resources' || section.id === 'prompts') && (
                       <motion.button
                         onClick={async () => {
                           if (section.id === 'connections') {
@@ -192,6 +205,11 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                               }
                             };
                             input.click();
+                          } else if (section.id === 'prompts') {
+                            const name = window.prompt('Prompt name', 'New prompt');
+                            if (!name) return;
+                            const description = window.prompt('Description', '') || '';
+                            addPrompt({ name, description });
                           }
                         }}
                         className="w-full flex items-center justify-center space-x-2 p-2 rounded border-2 border-dashed border-gray-300 dark:border-dark-600 hover:border-primary-400 dark:hover:border-white transition-colors"

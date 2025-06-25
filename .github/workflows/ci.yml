@@ -23,6 +23,6 @@ jobs:
       - name: Build
         run: npm run build
       - name: Start preview
-        run: npx serve -s dist -l 5000 &
+        run: npx vite preview --port 5000 --strictPort &
       - name: Smoke test
         run: node scripts/smoke.js 

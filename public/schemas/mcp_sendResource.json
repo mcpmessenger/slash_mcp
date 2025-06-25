@@ -1,0 +1,32 @@
+{
+  "$ref": "#/definitions/mcp_sendResource",
+  "definitions": {
+    "mcp_sendResource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "binary"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

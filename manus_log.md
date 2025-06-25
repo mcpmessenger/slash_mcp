@@ -62,4 +62,9 @@ Suggested Next Steps
 - Settings page cleaned (removed Quick Actions, Theme, Connection count); added resource/tool counts and Supabase refresh
 - Smoke test passes
 
+* Implemented env-driven server configuration + `env.example`.
+* Added graceful shutdown & health-check.
+* Sidebar prompts can be added/removed, persisted locally, and dragged to Terminal.
+* Forwarding logic now streams shell output back to origin window.
+
 *Continue appending notes here with each significant action or decision.* 

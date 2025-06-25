@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MCPConnection, MCPMessage, MCPResource, MCPTool, MCPPrompt } from '../types/mcp';
 import { MCPWebSocketClient } from '../lib/MCPWebSocketClient';
 
@@ -6,11 +6,24 @@ export const useMCP = () => {
   const [connections, setConnections] = useState<MCPConnection[]>([]);
   const [resources, setResources] = useState<MCPResource[]>([]);
   const [tools, setTools] = useState<MCPTool[]>([]);
-  const [prompts, setPrompts] = useState<MCPPrompt[]>([]);
+  const [prompts, setPrompts] = useState<MCPPrompt[]>(() => {
+    try {
+      const saved = localStorage.getItem('mcp_prompts');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
   const [openAiKey, setOpenAiKeyState] = useState<string>(() => localStorage.getItem('openai_key') ?? '');
   const [anthropicKey, setAnthropicKeyState] = useState<string>(() => localStorage.getItem('anthropic_key') ?? '');
   const [geminiKey, setGeminiKeyState] = useState<string>(() => localStorage.getItem('gemini_key') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Persist prompts whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('mcp_prompts', JSON.stringify(prompts));
+    } catch {}
+  }, [prompts]);
 
   const connect = useCallback(async (serverUrl: string) => {
     setIsConnecting(true);
@@ -230,6 +243,14 @@ export const useMCP = () => {
     return sendMessage(connectionId, { jsonrpc:'2.0', id: Date.now(), method:'mcp_getResource', params:{ resourceId } });
   }, [sendMessage]);
 
+  const addPrompt = useCallback((prompt: MCPPrompt) => {
+    setPrompts(prev => [...prev, prompt]);
+  }, []);
+
+  const removePrompt = useCallback((name: string) => {
+    setPrompts(prev => prev.filter(p => p.name !== name));
+  }, []);
+
   return {
     connections,
     resources,
@@ -252,6 +273,8 @@ export const useMCP = () => {
     setStorageCreds,
     listResources,
     getResource,
+    addPrompt,
+    removePrompt,
     setOpenAiKey,
     setAnthropicKey,
     setGeminiKey,

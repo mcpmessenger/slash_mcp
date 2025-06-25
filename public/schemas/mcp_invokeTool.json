@@ -1,0 +1,19 @@
+{
+  "$ref": "#/definitions/mcp_invokeTool",
+  "definitions": {
+    "mcp_invokeTool": {
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string"
+        },
+        "parameters": {}
+      },
+      "required": [
+        "toolName"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

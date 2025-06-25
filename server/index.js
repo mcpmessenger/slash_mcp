@@ -8,17 +8,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import { getSupabase, initSupabase } from './supabaseClient.js';
+import { z } from 'zod';
+import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL } from './config.js';
 
 const storageDir = path.resolve('storage');
 if (!fs.existsSync(storageDir)) {
   fs.mkdirSync(storageDir, { recursive: true });
 }
 
-const PORT = process.env.PORT || 8080;
-
-const ALLOWED_CMDS = ['ping', 'dir', 'ls', 'pwd', 'whoami', 'date', 'echo', 'ipconfig'];
-
 const httpServer = createServer(async (req, res) => {
+  // Health-check endpoint for load-balancers / readiness probes
+  if (req.method === 'GET' && req.url === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
+
   if (req.method === 'GET' && req.url && req.url.startsWith('/files/')) {
     const filePath = path.join(storageDir, decodeURIComponent(req.url.replace('/files/', '')));
     if (fs.existsSync(filePath)) {
@@ -45,9 +50,6 @@ const httpServer = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-const AUTH_OPTIONAL = (process.env.AUTH_OPTIONAL ?? (process.env.NODE_ENV !== 'production' ? 'true' : 'false')) === 'true';
-
 // If env has Supabase creds, initialize immediately
 // Map client-sent connectionId -> socket
 const socketMap = new Map();
@@ -57,6 +59,8 @@ const agentRegistry = new Map();
 const conversationContexts = new Map();
 // Map forwardedId -> { originSocket, originId }
 const forwardMap = new Map();
+// Map execId -> originSocket for relaying streamOutput / execComplete
+const execRelayMap = new Map();
 
 let resourceCounter = 0;
 
@@ -69,6 +73,8 @@ const ROLE_PERMS = {
 };
 
 function roleAllows(role, tool) {
+  // In dev mode with AUTH_OPTIONAL=true, let guests use all tools
+  if (AUTH_OPTIONAL && role === 'guest') return true;
   const allowed = ROLE_PERMS[role] || [];
   return allowed.includes(tool);
 }
@@ -78,6 +84,31 @@ function getExtFromMime(mime) {
   const map = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'text/plain': '.txt' };
   return map[mime] || '';
 }
+
+// ----------------- Zod Schemas for MCP methods -----------------
+export const schemas = {
+  mcp_sendResource: z.object({
+    type: z.enum(['text', 'binary']),
+    content: z.string(),
+    name: z.string().optional(),
+    mimeType: z.string().optional(),
+  }),
+  mcp_invokeTool: z.object({
+    toolName: z.string(),
+    parameters: z.any(),
+  }),
+  mcp_setStorageCreds: z.object({
+    url: z.string().url(),
+    key: z.string(),
+  }),
+  mcp_getResource: z.object({
+    resourceId: z.string(),
+  }),
+  mcp_listResources: z.object({
+    mimeType: z.string().optional(),
+    uploader: z.string().optional(),
+  }),
+};
 
 wss.on('connection', (socket, req) => {
   // Optional JWT verification
@@ -106,10 +137,34 @@ wss.on('connection', (socket, req) => {
     if (msg.id && forwardMap.has(msg.id)) {
       const { originSocket, originId } = forwardMap.get(msg.id);
       forwardMap.delete(msg.id);
+
+      // If this response includes an execId, track it for relay of subsequent notifications
+      if (msg.result && msg.result.execId) {
+        execRelayMap.set(msg.result.execId, originSocket);
+      }
+
       originSocket.send(JSON.stringify({ ...msg, id: originId }));
       return true;
     }
     return false;
+  };
+
+  // Relay streaming notifications to origin if execId is known
+  const maybeRelayStream = (msg) => {
+    if (msg.method && (msg.method === 'mcp_streamOutput' || msg.method === 'mcp_execComplete')) {
+      const execId = msg.params?.execId;
+      if (execId && execRelayMap.has(execId)) {
+        const originSocket = execRelayMap.get(execId);
+        // If exec has completed, clean map
+        if (msg.method === 'mcp_execComplete') {
+          execRelayMap.delete(execId);
+        }
+        // Forward notification unchanged
+        try {
+          originSocket.send(JSON.stringify(msg));
+        } catch {}
+      }
+    }
   };
 
   socket.on('message', async (data) => {
@@ -122,6 +177,9 @@ wss.on('connection', (socket, req) => {
       );
     }
 
+    // Stream relay check (notifications have no id)
+    maybeRelayStream(message);
+
     // If this is a response from a forwarded request, proxy it and stop processing
     if (handlePossibleForwardResponse(message)) return;
 
@@ -129,6 +187,22 @@ wss.on('connection', (socket, req) => {
       return socket.send(
         JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32600, message: 'Invalid Request' } })
       );
+    }
+
+    // -------- Param validation --------
+    if (schemas[message.method]) {
+      const schema = schemas[message.method];
+      try {
+        schema.parse(message.params || {});
+      } catch (err) {
+        return socket.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: message.id,
+            error: { code: -32602, message: 'Invalid params', data: err.errors || err.message },
+          })
+        );
+      }
     }
 
     const respond = (resultOrError) => {
@@ -233,18 +307,26 @@ wss.on('connection', (socket, req) => {
 
           // Run command inside a sandboxed Docker container (busybox by default)
           const execId = `exec_${Date.now()}`;
-          const dockerImage = process.env.MCP_SHELL_IMAGE || 'busybox';
+          const dockerImage = process.env.MCP_SHELL_IMAGE || 'debian:stable-slim';
           // Build docker args: docker run --rm <image> sh -c "<cmd>"
           const dockerArgs = ['run', '--rm', dockerImage, 'sh', '-c', finalCmd];
 
           const { spawn } = await import('node:child_process');
-          let child;
-          try {
-            child = spawn('docker', dockerArgs, { shell: false });
-          } catch (err) {
-            // Fallback to previous behaviour if docker not available
-            child = spawn(process.platform === 'win32' ? 'cmd.exe' : 'bash', [process.platform === 'win32' ? '/c' : '-c', finalCmd], { shell: false });
-          }
+          const spawnLocal = () => spawn(
+            process.platform === 'win32' ? 'cmd.exe' : 'bash',
+            [process.platform === 'win32' ? '/c' : '-c', finalCmd],
+            { shell: false }
+          );
+
+          let child = spawn('docker', dockerArgs, { shell: false });
+
+          // If docker is missing this event fires with ENOENT
+          child.on('error', (err) => {
+            if (err.code === 'ENOENT') {
+              console.warn('Docker not found – falling back to host shell');
+              child = spawnLocal();
+            }
+          });
 
           const timeoutMs = 5000;
           const killTimer = setTimeout(() => {
@@ -329,7 +411,10 @@ wss.on('connection', (socket, req) => {
                 inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
               },
             ],
-            prompts: [],
+            prompts: [
+              { name: 'test', description: 'Run automated tests' },
+              { name: 'describe this image', description: 'Generate a textual description for the selected image' },
+            ],
           },
         });
       }
@@ -361,8 +446,16 @@ wss.on('connection', (socket, req) => {
           return respond({ error: { code: -32010, message: 'Target not connected' } });
         }
 
-        // Forward the inner request verbatim
-        targetSocket.send(JSON.stringify(request));
+        // Ensure inner request has an id we can track
+        let innerReq = request;
+        if (!innerReq.id) {
+          innerReq = { ...innerReq, id: Date.now() + Math.random() };
+        }
+
+        // Map this id so when the response comes back we can relay to origin using outer message id
+        forwardMap.set(innerReq.id, { originSocket: socket, originId: message.id });
+
+        targetSocket.send(JSON.stringify(innerReq));
 
         return respond({ result: { status: 'forwarded', to: targetAgentId ?? connectionIdToUse } });
       }
@@ -404,13 +497,51 @@ wss.on('connection', (socket, req) => {
 });
 
 // Attempt env-based initialization at startup
-if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+// script may be imported solely for schema generation. Skip server start in that case.
+if (process.env.NO_MCP_SERVER === '1') {
+  // noop
+} else if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
   initSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 } else {
   console.log('Supabase not configured - running in local-only mode');
 }
 
-httpServer.listen(PORT, () => {
-  console.log(`MCP WebSocket server listening on ws://localhost:${PORT}`);
-  console.log(`Serving uploaded files at http://localhost:${PORT}/files/<filename>`);
-});
+if (process.env.NO_MCP_SERVER !== '1') {
+  httpServer.listen(PORT, () => {
+    console.log(`MCP WebSocket server listening on ws://localhost:${PORT}`);
+    console.log(`Serving uploaded files at http://localhost:${PORT}/files/<filename>`);
+  });
+
+  // Graceful shutdown on SIGINT / SIGTERM (e.g., Ctrl-C or container stop)
+  const shutdown = () => {
+    console.log('\nGraceful shutdown initiated');
+    // Stop accepting new connections
+    wss.close((err) => {
+      if (err) console.error('Error closing WebSocketServer', err);
+    });
+    httpServer.close(() => {
+      console.log('HTTP server closed');
+    });
+
+    // Close existing client sockets and kill their child processes
+    wss.clients.forEach((client) => {
+      try {
+        if (client.execMap) {
+          Object.values(client.execMap).forEach((child) => child.kill('SIGTERM'));
+        }
+        client.terminate();
+      } catch (e) {
+        /* noop */
+      }
+    });
+
+    // Force exit after timeout
+    setTimeout(() => {
+      console.log('Forcing shutdown');
+      process.exit(0);
+    }, 3000);
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+}

@@ -22,7 +22,7 @@ function waitForServer(url, timeout = 10000) {
 
 (async () => {
   console.log('📦 Starting static server...');
-  const serveProc = spawn('npx', ['serve', '-s', 'dist', '-l', PORT], { stdio: 'ignore', shell: true });
+  const serveProc = spawn('npx', ['vite', 'preview', '--port', PORT, '--strictPort'], { stdio: 'ignore', shell: true });
 
   try {
     await waitForServer(URL);
