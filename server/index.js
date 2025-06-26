@@ -171,6 +171,35 @@ const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000
 const MAX_MSGS_PER_WINDOW  = parseInt(process.env.MAX_MSGS_PER_WINDOW  || '60',    10); // 60 msgs
 
 wss.on('connection', (socket, req) => {
+  // Send initial status notification
+  try {
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'connection_status',
+        params: { status: 'connected' },
+      })
+    );
+  } catch {}
+
+  // --- Heartbeat / ping-pong liveness check ---
+  const HEARTBEAT_INTERVAL = parseInt(process.env.HEARTBEAT_INTERVAL_MS || '30000', 10); // 30s default
+  socket.isAlive = true;
+  socket.on('pong', () => {
+    socket.isAlive = true;
+  });
+  const hbTimer = setInterval(() => {
+    if (socket.readyState !== socket.OPEN) return; // Closed elsewhere
+    if (!socket.isAlive) {
+      console.warn('Terminating unresponsive socket');
+      return socket.terminate();
+    }
+    socket.isAlive = false;
+    try {
+      socket.ping();
+    } catch {}
+  }, HEARTBEAT_INTERVAL);
+
   // Optional JWT verification
   try {
     const url = new URL(req.url ?? '', `http://${req.headers.host}`);
@@ -591,6 +620,7 @@ wss.on('connection', (socket, req) => {
     console.log('Client disconnected');
     if (socket.connectionId) socketMap.delete(socket.connectionId);
     if (socket.agentId) agentRegistry.delete(socket.agentId);
+    clearInterval(hbTimer);
   });
 });
 

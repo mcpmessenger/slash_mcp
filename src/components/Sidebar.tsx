@@ -90,7 +90,13 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                         className="flex items-center justify-between space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
                       >
                         <div className="flex items-center space-x-2">
-                          <Circle className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
+                          {(() => {
+                            let colorClass = 'text-gray-400';
+                            if (conn.status === 'connected') colorClass = 'text-green-500';
+                            else if (conn.status === 'reconnecting') colorClass = 'text-yellow-500';
+                            else if (conn.status === 'disconnected' || conn.status === 'error') colorClass = 'text-red-500';
+                            return <Circle className={`w-3 h-3 ${colorClass}`} />;
+                          })()}
                           <span className="text-sm text-gray-700 dark:text-white">{conn.server.name}</span>
                         </div>
                         <button onClick={() => disconnect(conn.id)} className="text-gray-400 hover:text-red-500" title="Disconnect">✕</button>

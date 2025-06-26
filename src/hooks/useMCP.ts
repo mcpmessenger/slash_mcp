@@ -74,22 +74,48 @@ export const useMCP = () => {
         client,
       } as any;
 
-      // Automatically remove from state when socket closes
+      // Update status + attempt auto-reconnect on close
       client.onClose(() => {
-        setConnections(prev => prev.filter(c => c.id !== connection.id));
+        setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'disconnected' } : c));
+        // Basic auto-reconnect with 3 attempts exponential backoff
+        const maxAttempts = 3;
+        let attempt = 0;
+        const retry = async () => {
+          attempt += 1;
+          if (attempt > maxAttempts) return;
+          setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'reconnecting' } : c));
+          try {
+            const newClient = new MCPWebSocketClient(serverUrl);
+            await newClient.waitUntilOpen();
+            // Replace client reference
+            client.onClose(() => {}); // no-op to avoid leaks
+            connection.client = newClient;
+            connection.status = 'connected';
+            setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'connected', client: newClient as any } : c));
+
+            // Re-attach listeners
+            newClient.onClose(() => {
+              setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'disconnected' } : c));
+            });
+
+            // Re-register
+            await newClient.send({ jsonrpc:'2.0', id: Date.now(), method:'mcp_register', params:{ connectionId: newClient.id, agentId: displayName } });
+          } catch {
+            setTimeout(retry, 1000 * Math.pow(2, attempt));
+          }
+        };
+        setTimeout(retry, 1000);
+      });
+
+      // Handle connection_status notifications
+      client.onNotification((msg: any) => {
+        if (msg.method === 'connection_status') {
+          const status = msg.params?.status ?? 'unknown';
+          setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status } : c));
+        }
       });
 
       setConnections(prev => [...prev, connection]);
-
-      // Register connection and logical agent ID with backend for forwarding
-      try {
-        await client.send({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: 'mcp_register',
-          params: { connectionId: client.id, agentId: displayName },
-        });
-      } catch {}
 
       // Fetch capabilities
       try {

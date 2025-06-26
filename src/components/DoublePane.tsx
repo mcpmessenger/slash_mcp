@@ -5,28 +5,9 @@ import { TerminalPane } from './TerminalPane';
 export const DoublePane: React.FC = () => {
   const { connections } = useMCP();
 
-  if (connections.length < 2) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-gray-600 dark:text-gray-400 p-6 text-center">
-        <div>
-          <p className="text-lg font-medium mb-2">You need two connections to start.</p>
-          <p className="mb-4">Click <span className="font-semibold">Add Connection</span> in the sidebar twice to create them.</p>
-          <p className="text-4xl animate-bounce">⬅️</p>
-        </div>
-      </div>
-    );
-  }
-
-  const [connA, connB] = connections;
-
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [leftWidth, setLeftWidth] = React.useState<number | null>(null);
   const [isResizing, setIsResizing] = React.useState(false);
-
-  const startResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  };
 
   React.useEffect(() => {
     const handleMove = (e: MouseEvent) => {
@@ -43,6 +24,25 @@ export const DoublePane: React.FC = () => {
       window.removeEventListener('mouseup', stop);
     };
   }, [isResizing]);
+
+  if (connections.length < 2) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-gray-600 dark:text-gray-400 p-6 text-center">
+        <div>
+          <p className="text-lg font-medium mb-2">You need two connections to start.</p>
+          <p className="mb-4">Click <span className="font-semibold">Add Connection</span> in the sidebar twice to create them.</p>
+          <p className="text-4xl animate-bounce">⬅️</p>
+        </div>
+      </div>
+    );
+  }
+
+  const [connA, connB] = connections;
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
 
   return (
     <div ref={containerRef} className="relative flex flex-1 h-full">

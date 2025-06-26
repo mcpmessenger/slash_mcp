@@ -54,6 +54,6 @@ export interface MCPServer {
 export interface MCPConnection {
   id: string;
   server: MCPServer;
-  status: 'connected' | 'disconnected' | 'connecting' | 'error';
+  status: 'connected' | 'disconnected' | 'connecting' | 'reconnecting' | 'error' | 'unknown';
   lastActivity: Date;
 }
