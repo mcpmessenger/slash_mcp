@@ -85,4 +85,17 @@ Suggested Next Steps
 - Added `ClaudeMCPTool` backend integration with automatic session handshake.
 - Configured WSL-hosted Claude CLI bridged via `mcp-proxy` on `http://localhost:8081/mcp`.
 - Front-end settings updated (Claude MCP URL field).
-- Smoke test reports ✅ **passed**. 
+- Smoke test reports ✅ **passed**.
+
+### 2025-06-26 Dev-Experience & Low-Code Vision
+- **Terminal UX review**: identified friction with current prefix-based verbs (`rpc`, `tool`, `@<conn>`). Decided to explore a mode-toggle and/or natural-language first interface to remove obscure qualifiers.
+- **Low-code direction**: primary audience is tech-inclined non-coders. Consensus to allow full shell commands in a sandbox while introducing an LLM-powered "smart parser" that converts plain English requests into the correct MCP calls, with confirmation and RBAC pre-checks.
+- **Building-block visibility**: agreed to redesign Sidebar items as draggable chips with icons; hover placeholders and a Templates drawer will make drag-and-drop workflows self-evident. Keyboard autocomplete (`@`, `{`) will complement DnD.
+- **Persistent memory hooks**: command history, resources and user prefs will be stored in Supabase tables (`command_log`, `resources`, `user_prefs`) to enable intelligent suggestions and follow-ups.
+- **Security / Cost**: full shell runs inside Docker with `--network=none` by default; LLM parsing uses a cost-effective model only when heuristics fail.
+- **Phased roadmap**:
+  1. Heuristic detector + echo step; Supabase command history.
+  2. Integrate LLM intent resolver; replace generic RBAC errors with helpful suggestions.
+  3. UI polish: chip styling, hover slots, templates drawer, sandbox flags.
+
+*Next actions*: implement Phase-1 smart parser scaffolding; prototype chip-based Sidebar UI; update tests for new parser layer. 
