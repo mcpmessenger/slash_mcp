@@ -344,9 +344,17 @@ wss.on('connection', (socket, req) => {
             const safeMime = sanitizeString(mimeType || '');
 
             if (getSupabase()) {
-              await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime || 'text/plain', path: url, uploader: socket.agentId ?? socket.connectionId });
+              try {
+                const uploadName = `${resourceId}.txt`;
+                await getSupabase().storage.from('resources').upload(uploadName, content, { contentType: 'text/plain', upsert: true });
+                const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(uploadName);
+                const supaUrl = pubData?.publicUrl || url;
+                await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime || 'text/plain', path: uploadName, uploader: socket.agentId ?? socket.connectionId });
+                return respond({ result: { resourceId, status: 'uploaded', analysis, url: supaUrl } });
+              } catch (e) {
+                console.error('Supabase text upload failed', e);
+              }
             }
-
             return respond({ result: { resourceId, status: 'uploaded', analysis, url } });
           } catch (err) {
             return respond({ error: { code: -32002, message: 'Text write failed', data: err.message } });
@@ -366,9 +374,15 @@ wss.on('connection', (socket, req) => {
             const safeMime = sanitizeString(mimeType || '');
 
             if (getSupabase()) {
-              // upload file to storage bucket 'resources'
-              await getSupabase().storage.from('resources').upload(filename, buffer, { contentType: mimeType, upsert: true });
-              await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime, path: filename, uploader: socket.agentId ?? socket.connectionId });
+              try {
+                // upload file to storage bucket 'resources'
+                await getSupabase().storage.from('resources').upload(filename, buffer, { contentType: mimeType, upsert: true });
+                await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime, path: filename, uploader: socket.agentId ?? socket.connectionId });
+                const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(filename);
+                url = pubData?.publicUrl || url;
+              } catch (e) {
+                console.error('Supabase binary upload failed', e);
+              }
             }
             return respond({ result: { resourceId, status: 'uploaded', url } });
           } catch (err) {
@@ -603,7 +617,16 @@ wss.on('connection', (socket, req) => {
         if (uploader) query = query.eq('uploader', uploader);
         const { data, error } = await query;
         if (error) return respond({ error: { code: -32051, message: error.message } });
-        return respond({ result: data });
+        // Attach public URLs
+        const enriched = await Promise.all((data || []).map(async (row) => {
+          let url = row.path;
+          try {
+            const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(row.path);
+            if (pubData?.publicUrl) url = pubData.publicUrl;
+          } catch {}
+          return { ...row, url };
+        }));
+        return respond({ result: enriched });
       }
 
       case 'mcp_setStorageCreds': {
