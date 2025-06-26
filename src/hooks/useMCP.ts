@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { MCPConnection, MCPMessage, MCPResource, MCPTool, MCPPrompt } from '../types/mcp';
 import { MCPWebSocketClient } from '../lib/MCPWebSocketClient';
+import { useToast } from '../context/ToastContext';
 
 // Track how many connections we've made per base host so we can assign unique display names even across rapid connects.
 const connectionCounters: Record<string, number> = {};
@@ -32,6 +33,7 @@ export const useMCP = () => {
   const [supKey, setSupKeyState] = useState<string>(() => localStorage.getItem('supabase_key') ?? '');
   const [githubPat, setGithubPatState] = useState<string>(() => localStorage.getItem('github_pat') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
+  const { addToast } = useToast();
 
   // Persist prompts whenever they change
   useEffect(() => {
@@ -77,6 +79,7 @@ export const useMCP = () => {
       // Update status + attempt auto-reconnect on close
       client.onClose(() => {
         setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'disconnected' } : c));
+        addToast(`${displayName} disconnected`, 'error');
         // Basic auto-reconnect with 3 attempts exponential backoff
         const maxAttempts = 3;
         let attempt = 0;
@@ -84,6 +87,7 @@ export const useMCP = () => {
           attempt += 1;
           if (attempt > maxAttempts) return;
           setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'reconnecting' } : c));
+          addToast(`${displayName} reconnecting (attempt ${attempt})`);
           try {
             const newClient = new MCPWebSocketClient(serverUrl);
             await newClient.waitUntilOpen();
@@ -92,6 +96,7 @@ export const useMCP = () => {
             connection.client = newClient;
             connection.status = 'connected';
             setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'connected', client: newClient as any } : c));
+            addToast(`${displayName} reconnected`, 'success');
 
             // Re-attach listeners
             newClient.onClose(() => {
@@ -111,6 +116,7 @@ export const useMCP = () => {
       client.onNotification((msg: any) => {
         if (msg.method === 'connection_status') {
           const status = msg.params?.status ?? 'unknown';
+          if (status === 'connected') addToast(`${displayName} connected`, 'success');
           setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status } : c));
         }
       });
