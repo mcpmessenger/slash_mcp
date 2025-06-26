@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { MCPConnection, MCPMessage, MCPResource, MCPTool, MCPPrompt } from '../types/mcp';
 import { MCPWebSocketClient } from '../lib/MCPWebSocketClient';
 
+// Track how many connections we've made per base host so we can assign unique display names even across rapid connects.
+const connectionCounters: Record<string, number> = {};
+
 export const useMCP = () => {
   const [connections, setConnections] = useState<MCPConnection[]>([]);
   const [resources, setResources] = useState<MCPResource[]>([]);
@@ -17,8 +20,17 @@ export const useMCP = () => {
   const [anthropicKey, setAnthropicKeyState] = useState<string>(() => localStorage.getItem('anthropic_key') ?? '');
   const [geminiKey, setGeminiKeyState] = useState<string>(() => localStorage.getItem('gemini_key') ?? '');
   const [zapierWebhook, setZapierWebhookState] = useState<string>(() => localStorage.getItem('zapier_webhook') ?? '');
+  const [zapierMcpUrl, setZapierMcpUrlState] = useState<string>(() => {
+    const stored = localStorage.getItem('zapier_mcp_url');
+    if (stored) return stored;
+    // Migrate older key if user previously saved under zapier_webhook
+    const legacy = localStorage.getItem('zapier_mcp');
+    return legacy ?? '';
+  });
+  const [claudeMcpUrl, setClaudeMcpUrlState] = useState<string>(() => localStorage.getItem('claude_mcp_url') ?? '');
   const [supUrl, setSupUrlState] = useState<string>(() => localStorage.getItem('supabase_url') ?? '');
   const [supKey, setSupKeyState] = useState<string>(() => localStorage.getItem('supabase_key') ?? '');
+  const [githubPat, setGithubPatState] = useState<string>(() => localStorage.getItem('github_pat') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
 
   // Persist prompts whenever they change
@@ -26,10 +38,13 @@ export const useMCP = () => {
     try {
       localStorage.setItem('mcp_prompts', JSON.stringify(prompts));
       localStorage.setItem('zapier_webhook', zapierWebhook);
+      localStorage.setItem('zapier_mcp_url', zapierMcpUrl);
+      localStorage.setItem('claude_mcp_url', claudeMcpUrl);
       localStorage.setItem('supabase_url', supUrl);
       localStorage.setItem('supabase_key', supKey);
+      localStorage.setItem('github_pat', githubPat);
     } catch {}
-  }, [prompts, zapierWebhook, supUrl, supKey]);
+  }, [prompts, zapierWebhook, zapierMcpUrl, claudeMcpUrl, supUrl, supKey, githubPat]);
 
   const connect = useCallback(async (serverUrl: string) => {
     setIsConnecting(true);
@@ -38,8 +53,9 @@ export const useMCP = () => {
       await client.waitUntilOpen();
 
       const baseName = serverUrl.replace(/^wss?:\/\//, '').replace(/\/$/, '');
-      const dupCount = connections.filter(c => c.server.name.startsWith(baseName)).length;
-      const displayName = dupCount === 0 ? baseName : `${baseName} #${dupCount+1}`;
+      connectionCounters[baseName] = (connectionCounters[baseName] || 0) + 1;
+      const count = connectionCounters[baseName];
+      const displayName = count === 1 ? baseName : `${baseName} #${count}`;
 
       const connection: MCPConnection & { client: MCPWebSocketClient } = {
         id: client.id,
@@ -57,6 +73,11 @@ export const useMCP = () => {
         lastActivity: new Date(),
         client,
       } as any;
+
+      // Automatically remove from state when socket closes
+      client.onClose(() => {
+        setConnections(prev => prev.filter(c => c.id !== connection.id));
+      });
 
       setConnections(prev => [...prev, connection]);
 
@@ -149,6 +170,10 @@ export const useMCP = () => {
 
   /** Convenience helper to invoke a tool */
   const invokeTool = useCallback(async (connectionId: string, toolName: string, parameters: any) => {
+    // Auto-inject GitHub PAT if invoking GitHub tool
+    if (toolName === 'github_mcp_tool' && !parameters.github_token && githubPat) {
+      parameters = { ...parameters, github_token: githubPat };
+    }
     const message: MCPMessage = {
       jsonrpc: '2.0',
       id: Date.now(),
@@ -156,7 +181,7 @@ export const useMCP = () => {
       params: { toolName, parameters },
     };
     return sendMessage(connectionId, message);
-  }, [sendMessage]);
+  }, [sendMessage, githubPat]);
 
   /** Convenience helper for OpenAI chat */
   const invokeChat = useCallback(async (connectionId: string, prompt: string) => {
@@ -193,6 +218,16 @@ export const useMCP = () => {
     setZapierWebhookState(url);
   }, []);
 
+  const setZapierMcpUrl = useCallback((url: string) => {
+    localStorage.setItem('zapier_mcp_url', url);
+    setZapierMcpUrlState(url);
+  }, []);
+
+  const setClaudeMcpUrl = useCallback((url: string) => {
+    localStorage.setItem('claude_mcp_url', url);
+    setClaudeMcpUrlState(url);
+  }, []);
+
   const setSupabaseCredsLocal = useCallback((url: string, key: string) => {
     setSupUrlState(url);
     setSupKeyState(key);
@@ -201,6 +236,11 @@ export const useMCP = () => {
       localStorage.setItem('supabase_key', key);
     } catch {}
   }, []);
+
+  const setGithubPat = useCallback((token:string)=>{
+    localStorage.setItem('github_pat', token);
+    setGithubPatState(token);
+  },[]);
 
   /** Send binary file resource */
   const sendFileResource = useCallback(async (connectionId: string, file: File) => {
@@ -277,6 +317,23 @@ export const useMCP = () => {
     return invokeTool(connectionId, 'zapier_trigger_zap', { payload, webhookUrl });
   }, [invokeTool, zapierWebhook]);
 
+  const invokeZapierMCP = useCallback(async (connectionId: string, tool: string, params: any = {}) => {
+    if (!zapierMcpUrl) throw new Error('Zapier MCP URL not set');
+    return invokeTool(connectionId, 'zapier_mcp_invoke', { tool, params, serverUrl: zapierMcpUrl });
+  }, [invokeTool, zapierMcpUrl]);
+
+  const invokeClaudeMCP = useCallback(async (connectionId: string, tool: string, params: any = {}) => {
+    if (!claudeMcpUrl) throw new Error('Claude MCP URL not set');
+    return invokeTool(connectionId, 'claude_mcp_invoke', { tool, params, serverUrl: claudeMcpUrl });
+  }, [invokeTool, claudeMcpUrl]);
+
+  const pruneConnections = useCallback(() => {
+    setConnections(prev => prev.filter(c => {
+      const cl = (c as any).client as MCPWebSocketClient | undefined;
+      return !cl || cl.state === WebSocket.OPEN;
+    }));
+  }, []);
+
   return {
     connections,
     resources,
@@ -286,8 +343,11 @@ export const useMCP = () => {
     anthropicKey,
     geminiKey,
     zapierWebhook,
+    zapierMcpUrl,
+    claudeMcpUrl,
     supUrl,
     supKey,
+    githubPat,
     isConnecting,
     connect,
     disconnect,
@@ -308,8 +368,14 @@ export const useMCP = () => {
     setAnthropicKey,
     setGeminiKey,
     setZapierWebhook,
+    setZapierMcpUrl,
+    setClaudeMcpUrl,
     setSupabaseCredsLocal,
+    setGithubPat,
     triggerZapier,
+    invokeZapierMCP,
+    invokeClaudeMCP,
+    pruneConnections,
     onNotification: (handler: (msg: MCPMessage) => void) => {
       const unsubs: Array<() => void> = [];
       (connections as any).forEach((c: any) => {

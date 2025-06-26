@@ -13,6 +13,10 @@ import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL } from './config.js';
 import { registry } from './ToolRegistry.js';
 import './integrations/ZapierTool.js';
 import './integrations/OpenAITool.js';
+import './integrations/ZapierMCPTool.js';
+import './integrations/ClaudeMCPTool.js';
+import './integrations/GitHubMCPTool.js';
+import './integrations/SupabaseMCPTool.js';
 
 console.log('env OPENAI?', !!process.env.OPENAI_API_KEY);
 console.log('env ZAP?', process.env.ZAPIER_WEBHOOK_URL);
@@ -73,9 +77,9 @@ let resourceCounter = 0;
 // --- Simple RBAC mapping (MVP) ---
 const ROLE_PERMS = {
   guest: [],
-  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
-  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
-  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap'],
+  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
+  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
+  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
 };
 
 function roleAllows(role, tool) {
@@ -421,6 +425,7 @@ wss.on('connection', (socket, req) => {
           },
         ];
         const toolList = [...staticTools, ...registry.list()];
+        console.log('Registered tools:', toolList.map(t => t.name));
         return respond({
           result: {
             resources: [],

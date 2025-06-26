@@ -18,8 +18,8 @@ interface TerminalEntry {
 export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const [entries, setEntries] = useState<TerminalEntry[]>([]);
   // Persistent template for LLM ↔︎ LLM hand-off
-  const DEFAULT_TEMPLATE = '@{connection} {resources},{tools},{prompts}';
-  const [currentCommand, setCurrentCommand] = useState<string>(DEFAULT_TEMPLATE);
+  const DEFAULT_TEMPLATE = '';
+  const [currentCommand, setCurrentCommand] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini } = useMCP();
@@ -176,8 +176,8 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
     setHistory(prev => [...prev, command]);
     setHistoryIdx(-1);
-    // After execution, reset to template so users can build next command quickly
-    setCurrentCommand(DEFAULT_TEMPLATE);
+    // After execution, clear input
+    setCurrentCommand('');
   };
 
   const getCommandOutput = (cmd: string): { output: string; status: 'success' | 'error' } => {

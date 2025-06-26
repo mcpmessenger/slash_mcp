@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
 
 export const Settings: React.FC = () => {
-  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources, zapierWebhook, setZapierWebhook, supUrl, supKey, setSupabaseCredsLocal } = useMCP();
+  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources, zapierWebhook, setZapierWebhook, supUrl, supKey, setSupabaseCredsLocal, zapierMcpUrl, setZapierMcpUrl, claudeMcpUrl, setClaudeMcpUrl, githubPat, setGithubPat } = useMCP();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
   const [claudeK, setClaudeK] = React.useState(anthropicKey);
@@ -15,12 +15,19 @@ export const Settings: React.FC = () => {
   const [supabaseUrl, setSupabaseUrl] = React.useState(supUrl);
   const [supabaseKeyVal, setSupabaseKeyVal] = React.useState(supKey);
   const [sbSaved, setSbSaved] = React.useState(false);
+  const [mcpUrl, setMcpUrl] = React.useState(zapierMcpUrl);
+  const [claudeUrl, setClaudeUrl] = React.useState(claudeMcpUrl);
+  const [gitPat, setGitPat] = React.useState(githubPat);
+  const [claudeStatus, setClaudeStatus] = React.useState<'unknown'|'online'|'offline'>('unknown');
 
   const handleSaveKeys = () => {
     setOpenAiKey(key.trim());
     setAnthropicKey(claudeK.trim());
     setGeminiKey(gemKey.trim());
     setZapierWebhook(zapUrl.trim());
+    setZapierMcpUrl(mcpUrl.trim());
+    setClaudeMcpUrl(claudeUrl.trim());
+    setGithubPat(gitPat.trim());
     setSaved(true);
     setTimeout(()=>setSaved(false),1500);
   };
@@ -36,6 +43,35 @@ export const Settings: React.FC = () => {
     setSbSaved(true);
     setTimeout(()=>setSbSaved(false),1500);
   };
+
+  // Check Claude MCP availability whenever URL changes
+  React.useEffect(()=>{
+    if (!claudeUrl) { setClaudeStatus('unknown'); return; }
+    let cancelled=false;
+    try {
+      const wsUrl = claudeUrl.replace(/^http/,'ws').replace(/^https/,'wss');
+      const ws = new WebSocket(wsUrl);
+      const timer = setTimeout(()=>{
+        if(cancelled) return;
+        ws.close();
+        setClaudeStatus('offline');
+      },4000);
+      ws.onopen = () => {
+        clearTimeout(timer);
+        if(cancelled) { ws.close(); return; }
+        setClaudeStatus('online');
+        ws.close();
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        if(cancelled) return;
+        setClaudeStatus('offline');
+      };
+    } catch {
+      setClaudeStatus('offline');
+    }
+    return ()=>{ cancelled=true; };
+  },[claudeUrl]);
 
   return (
     <motion.div 
@@ -139,6 +175,29 @@ export const Settings: React.FC = () => {
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Zapier Webhook URL</label>
                 <input type="text" value={zapUrl} onChange={(e)=>setZapUrl(e.target.value)} placeholder="https://hooks.zapier.com/..." className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Zapier MCP Server URL</label>
+                <input type="text" value={mcpUrl} onChange={(e)=>setMcpUrl(e.target.value)} placeholder="https://XXXX.runs.mcp.zapier.com/..." className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">Claude MCP Server URL
+                {claudeStatus!=='unknown' && (
+                  <span className={`inline-block w-2 h-2 rounded-full ${claudeStatus==='online'?'bg-green-500':'bg-red-500'}`}></span>)}</label>
+                <input type="text" value={claudeUrl} onChange={(e)=>setClaudeUrl(e.target.value)} placeholder="http://localhost:8081" className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">GitHub Personal Access Token</label>
+                <input
+                  type="password"
+                  value={gitPat}
+                  placeholder="ghp_..."
+                  onChange={(e) => setGitPat(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
+                />
               </div>
 
               <button

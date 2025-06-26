@@ -7,12 +7,9 @@ const AutoConnect: React.FC = () => {
   const { connections, connect } = useMCP();
 
   useEffect(() => {
-    // Ensure at least two connections
-    const need = 2 - connections.length;
-    if (need > 0) {
-      for (let i = 0; i < need; i++) {
-        connect(DEFAULT_URL).catch(() => {});
-      }
+    // Ensure at least ONE connection on start, but don't persistently force duplicates.
+    if (connections.length === 0) {
+      connect(DEFAULT_URL).catch(() => {});
     }
   }, [connections, connect]);
 

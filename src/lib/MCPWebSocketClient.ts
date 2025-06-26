@@ -67,4 +67,15 @@ export class MCPWebSocketClient {
       this.notificationHandlers = this.notificationHandlers.filter((h) => h !== cb);
     };
   }
+
+  /** Current readyState of underlying WebSocket */
+  get state() {
+    return this.socket.readyState;
+  }
+
+  /** Register an onclose handler. Returns an unsubscribe fn */
+  onClose(cb: (ev: CloseEvent) => void) {
+    this.socket.addEventListener('close', cb);
+    return () => this.socket.removeEventListener('close', cb);
+  }
 } 

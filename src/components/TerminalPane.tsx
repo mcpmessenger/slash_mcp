@@ -15,8 +15,8 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
   const [connId, setConnId] = useState<string>(initialConnId);
   const [entries, setEntries] = useState<Entry[]>([]);
   // Persistent template with placeholders
-  const DEFAULT_TEMPLATE = '@{connection} {resources},{tools},{prompts}';
-  const [current, setCurrent] = useState<string>(DEFAULT_TEMPLATE);
+  const DEFAULT_TEMPLATE = '';
+  const [current, setCurrent] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -185,7 +185,7 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
     const cmd = current.trim();
     if (!cmd) return;
     execute(cmd);
-    setCurrent(DEFAULT_TEMPLATE);
+    setCurrent('');
   };
 
   const handleDragOverInput = (e: React.DragEvent<HTMLInputElement>) => {

@@ -4,7 +4,7 @@ import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, C
 import { useMCP } from '../context/MCPContext';
 
 export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> = ({ collapsed=false, onToggle }) => {
-  const { connections, resources, tools, prompts, connect, listResources, sendFileResource, addPrompt, removePrompt } = useMCP();
+  const { connections, resources, tools, prompts, connect, disconnect, listResources, sendFileResource, addPrompt, removePrompt } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
         </button>
       )}
       {collapsed && (
-        <button onClick={onToggle} className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-r w-6 h-12 flex items-center justify-center shadow">
+        <button onClick={onToggle} className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-r w-6 h-12 flex items-center justify-center shadow z-50">
           <span className="sr-only">Expand</span>
           ❯
         </button>
@@ -87,10 +87,13 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                             JSON.stringify({ type: 'connection', item: { handle, id: conn.id, name: conn.server.name } })
                           );
                         }}
-                        className="flex items-center space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
+                        className="flex items-center justify-between space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
                       >
-                        <Circle className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
-                        <span className="text-sm text-gray-700 dark:text-white">{conn.server.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <Circle className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
+                          <span className="text-sm text-gray-700 dark:text-white">{conn.server.name}</span>
+                        </div>
+                        <button onClick={() => disconnect(conn.id)} className="text-gray-400 hover:text-red-500" title="Disconnect">✕</button>
                       </div>
                     ))}
                     
