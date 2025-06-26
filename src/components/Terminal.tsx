@@ -163,7 +163,11 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
         if ('result' in res) {
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: JSON.stringify(res.result, null, 2), status: 'success' } : e));
         } else {
-          const msg = (res as any).error?.message ?? 'Error';
+          const errObj: any = (res as any).error || {};
+          let msg = errObj.message ?? 'Error';
+          if (errObj.data && errObj.data.allowed) {
+            msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
+          }
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
         }
       } catch (err: any) {
@@ -195,7 +199,11 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
           entry.execId = res.result.execId;
           setEntries(prev => prev.map(e => e.id === id ? { ...e, execId: res.result.execId } : e));
         } else if ('error' in res) {
-          const msg = (res as any).error?.message ?? 'Error';
+          const errObj: any = (res as any).error || {};
+          let msg = errObj.message ?? 'Error';
+          if (errObj.data && errObj.data.allowed) {
+            msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
+          }
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
         }
       } catch (err: any) {

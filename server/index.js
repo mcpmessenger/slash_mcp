@@ -416,7 +416,7 @@ wss.on('connection', (socket, req) => {
           const cmdParts = command.trim().split(/\s+/);
           const baseCmd = cmdParts[0];
           if (!ALLOWED_CMDS.includes(baseCmd)) {
-            return respond({ error: { code: -32005, message: 'Command not allowed' } });
+            return respond({ error: { code: -32005, message: 'Command not allowed', data: { allowed: ALLOWED_CMDS } } });
           }
 
           // Simple OS-aware munging for ping count flag
