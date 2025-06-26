@@ -40,6 +40,8 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
   const [completionIdx, setCompletionIdx] = useState<number>(-1);
 
+  const [autoScroll, setAutoScroll] = useState(true);
+
   const computeCompletions = (prefix: string): string[] => {
     const pool = [
       ...suggestions,
@@ -55,14 +57,25 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   }, [connections, selectedConn]);
 
   const scrollToBottom = () => {
+    if (!autoScroll) return;
     requestAnimationFrame(() => {
-      containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+      const el = containerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [entries]);
+
+  // Detect user scroll position to toggle autoScroll
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setAutoScroll(nearBottom);
+  };
 
   useEffect(() => {
     const unsub = onNotification((msg) => {
@@ -412,7 +425,13 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
             />
           </form>
 
-          <div ref={containerRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-2 bg-gray-950/60">
+          <div
+            ref={containerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-2 bg-gray-950/60"
+            onMouseEnter={() => setAutoScroll(false)}
+            onMouseLeave={() => setAutoScroll(true)}
+          >
             {entries.map(entry => (
               <div key={entry.id}>
                 <div className="flex items-start">
