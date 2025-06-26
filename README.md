@@ -146,3 +146,29 @@ Visit http://localhost:5173/chat – two terminals will appear; sidebar is hidde
   * Prompts persist in `localStorage`.
 * Cross-connection forwarding reworked – streamed stdout (`mcp_streamOutput`) now relays back to the origin so `@2 ping 8.8.8.8` works between browser windows.
 * Starter prompts `test` and `describe this image` included from backend capabilities.
+
+## Using Claude Code as an MCP server
+
+1. In WSL (Linux) install Claude CLI and start the bridge:
+
+```bash
+export CLAUDE_BIN=/usr/bin/claude
+export ANTHROPIC_API_KEY=<your-key>
+# stateless HTTP bridge on :8081
+npx --yes mcp-proxy --stateless --server stream --port 8081 /usr/bin/claude mcp serve
+```
+
+2. Set the env-var before starting the backend (or via Settings panel):
+
+```bash
+export CLAUDE_MCP_URL="http://localhost:8081/mcp"
+npm run backend
+```
+
+3. In the Slash terminal invoke tools:
+
+```text
+tool claude_mcp_invoke {"tool":"run_command","params":{"command":"echo hello"}}
+```
+
+Outputs from Claude CLI stream back into the pane.

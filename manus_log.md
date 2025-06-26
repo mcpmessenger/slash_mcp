@@ -79,4 +79,10 @@ Suggested Next Steps
   - Settings page now persists OpenAI, Anthropic, Gemini, **Zapier Webhook URL**, and Supabase URL/Service-Role Key to `localStorage`.
   - Supabase creds are pushed to backend via `mcp_setStorageCreds`, after which uploads go directly to the bucket.
 - Smoke tests and unit tests (`ToolRegistry.test.js`) pass.
-- Manual validation: `tool openai_tool {"prompt":"hi"}` returns completion; `tool zapier_trigger_zap {"payload":{"hello":"world"}}` returns `status: triggered, httpStatus: 200`. 
+- Manual validation: `tool openai_tool {"prompt":"hi"}` returns completion; `tool zapier_trigger_zap {"payload":{"hello":"world"}}` returns `status: triggered, httpStatus: 200`.
+
+### 2025-06-26 – Claude Code MCP integration
+- Added `ClaudeMCPTool` backend integration with automatic session handshake.
+- Configured WSL-hosted Claude CLI bridged via `mcp-proxy` on `http://localhost:8081/mcp`.
+- Front-end settings updated (Claude MCP URL field).
+- Smoke test reports ✅ **passed**. 
