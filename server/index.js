@@ -17,6 +17,8 @@ import './integrations/ZapierMCPTool.js';
 import './integrations/ClaudeMCPTool.js';
 import './integrations/GitHubMCPTool.js';
 import './integrations/SupabaseMCPTool.js';
+import logger from './logger.js';
+import { sanitizeFilename, sanitizeString } from './utils/sanitize.js';
 
 console.log('env OPENAI?', !!process.env.OPENAI_API_KEY);
 console.log('env ZAP?', process.env.ZAPIER_WEBHOOK_URL);
@@ -74,19 +76,63 @@ const execRelayMap = new Map();
 
 let resourceCounter = 0;
 
-// --- Simple RBAC mapping (MVP) ---
+// --- Enhanced RBAC mapping (tool -> allowed operations, true=all) ---
 const ROLE_PERMS = {
-  guest: [],
-  developer: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
-  admin: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
-  ai_agent: ['shell_execute', 'openai_chat', 'anthropic_chat', 'gemini_chat', 'openai_tool', 'zapier_trigger_zap', 'zapier_mcp_invoke', 'github_mcp_tool', 'supabase_mcp_tool'],
+  guest: {
+    // guests only read-only tools, extend later
+  },
+  developer: {
+    shell_execute: true,
+    openai_chat: true,
+    anthropic_chat: true,
+    gemini_chat: true,
+    zapier_trigger_zap: true,
+    zapier_mcp_invoke: true,
+    github_mcp_tool: true,
+    supabase_mcp_tool: [
+      'select',
+      'insert',
+      'update',
+      'delete',
+      'list_files',
+      'download_file',
+    ],
+  },
+  admin: {
+    shell_execute: true,
+    openai_chat: true,
+    anthropic_chat: true,
+    gemini_chat: true,
+    zapier_trigger_zap: true,
+    zapier_mcp_invoke: true,
+    github_mcp_tool: true,
+    supabase_mcp_tool: true, // admins get full supabase control
+  },
+  ai_agent: {
+    shell_execute: true,
+    openai_chat: true,
+    anthropic_chat: true,
+    gemini_chat: true,
+    zapier_trigger_zap: true,
+    zapier_mcp_invoke: true,
+    github_mcp_tool: true,
+    supabase_mcp_tool: ['select'], // agents only read data by default
+  },
 };
 
-function roleAllows(role, tool) {
-  // In dev mode with AUTH_OPTIONAL=true, let guests use all tools
+export function roleAllows(role, tool, operation = null) {
   if (AUTH_OPTIONAL && role === 'guest') return true;
-  const allowed = ROLE_PERMS[role] || [];
-  return allowed.includes(tool);
+  const roleMap = ROLE_PERMS[role];
+  if (!roleMap) return false;
+  const rule = roleMap[tool];
+  if (rule === undefined) return false; // not listed
+  if (rule === true) return true; // full access to tool
+  if (Array.isArray(rule)) {
+    // If no specific operation requested treat like denied unless empty array means all
+    if (!operation) return false;
+    return rule.includes(operation);
+  }
+  return false;
 }
 
 function getExtFromMime(mime) {
@@ -120,6 +166,10 @@ export const schemas = {
   }),
 };
 
+// Rate-limiting settings (can be overridden by env vars)
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // 1 min
+const MAX_MSGS_PER_WINDOW  = parseInt(process.env.MAX_MSGS_PER_WINDOW  || '60',    10); // 60 msgs
+
 wss.on('connection', (socket, req) => {
   // Optional JWT verification
   try {
@@ -141,6 +191,7 @@ wss.on('connection', (socket, req) => {
   }
 
   console.log('Client connected');
+  logger.info('Client connected', { remoteIp: req.socket.remoteAddress });
 
   // Helper to relay response back to origin if this is a forwarded id
   const handlePossibleForwardResponse = (msg) => {
@@ -178,6 +229,25 @@ wss.on('connection', (socket, req) => {
   };
 
   socket.on('message', async (data) => {
+    // ---- Basic per-connection rate limiting ----
+    const now = Date.now();
+    if (!socket._rateWindowStart || now - socket._rateWindowStart > RATE_LIMIT_WINDOW_MS) {
+      socket._rateWindowStart = now;
+      socket._rateCount = 0;
+    }
+    socket._rateCount = (socket._rateCount ?? 0) + 1;
+    if (socket._rateCount > MAX_MSGS_PER_WINDOW) {
+      return socket.send(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: {
+            code: -32008,
+            message: `Rate limit exceeded – max ${MAX_MSGS_PER_WINDOW} messages per ${RATE_LIMIT_WINDOW_MS / 1000}s`,
+          },
+        })
+      );
+    }
+
     let message;
     try {
       message = JSON.parse(data);
@@ -240,8 +310,12 @@ wss.on('connection', (socket, req) => {
             const analysis = `Saved ${content.length} characters`;
             const url = `/files/${filename}`;
 
+            // Sanitize user-supplied strings
+            const safeName = sanitizeFilename(name || '');
+            const safeMime = sanitizeString(mimeType || '');
+
             if (getSupabase()) {
-              await getSupabase().from('resources').insert({ id: resourceId, name, mime_type: 'text/plain', path: url, uploader: socket.agentId ?? socket.connectionId });
+              await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime || 'text/plain', path: url, uploader: socket.agentId ?? socket.connectionId });
             }
 
             return respond({ result: { resourceId, status: 'uploaded', analysis, url } });
@@ -258,10 +332,14 @@ wss.on('connection', (socket, req) => {
             await fsPromises.writeFile(filepath, buffer);
             const url = `/files/${filename}`;
 
+            // Sanitize user-supplied strings
+            const safeName = sanitizeFilename(name || '');
+            const safeMime = sanitizeString(mimeType || '');
+
             if (getSupabase()) {
               // upload file to storage bucket 'resources'
               await getSupabase().storage.from('resources').upload(filename, buffer, { contentType: mimeType, upsert: true });
-              await getSupabase().from('resources').insert({ id: resourceId, name, mime_type: mimeType, path: filename, uploader: socket.agentId ?? socket.connectionId });
+              await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime, path: filename, uploader: socket.agentId ?? socket.connectionId });
             }
             return respond({ result: { resourceId, status: 'uploaded', url } });
           } catch (err) {
@@ -276,8 +354,9 @@ wss.on('connection', (socket, req) => {
 
         // RBAC enforcement
         const requesterRole = socket.role || 'guest';
-        if (!roleAllows(requesterRole, toolName)) {
-          return respond({ error: { code: -32013, message: `Role ${requesterRole} not permitted for ${toolName}` } });
+        const toolOperation = parameters?.operation ?? null;
+        if (!roleAllows(requesterRole, toolName, toolOperation)) {
+          return respond({ error: { code: -32013, message: `Role ${requesterRole} not permitted for ${toolName}${toolOperation ? '/' + toolOperation : ''}` } });
         }
 
         // Check registry first – if tool is registered there, delegate.

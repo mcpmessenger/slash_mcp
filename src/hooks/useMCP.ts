@@ -170,10 +170,23 @@ export const useMCP = () => {
 
   /** Convenience helper to invoke a tool */
   const invokeTool = useCallback(async (connectionId: string, toolName: string, parameters: any) => {
-    // Auto-inject GitHub PAT if invoking GitHub tool
+    // Auto-inject GitHub PAT
     if (toolName === 'github_mcp_tool' && !parameters.github_token && githubPat) {
       parameters = { ...parameters, github_token: githubPat };
     }
+
+    // Auto-inject Supabase creds if missing
+    if (toolName === 'supabase_mcp_tool') {
+      const merged = { ...parameters } as any;
+      if (!merged.supabase_url && supUrl) {
+        merged.supabase_url = supUrl;
+      }
+      if (!merged.supabase_key && supKey) {
+        merged.supabase_key = supKey;
+      }
+      parameters = merged;
+    }
+
     const message: MCPMessage = {
       jsonrpc: '2.0',
       id: Date.now(),
@@ -181,7 +194,7 @@ export const useMCP = () => {
       params: { toolName, parameters },
     };
     return sendMessage(connectionId, message);
-  }, [sendMessage, githubPat]);
+  }, [sendMessage, githubPat, supUrl, supKey]);
 
   /** Convenience helper for OpenAI chat */
   const invokeChat = useCallback(async (connectionId: string, prompt: string) => {
