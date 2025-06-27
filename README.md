@@ -164,28 +164,51 @@ Visit http://localhost:5173/chat – two terminals will appear; sidebar is hidde
 
 ## Using Claude Code as an MCP server
 
-1. In WSL (Linux) install Claude CLI and start the bridge:
+> Updated 2025-06-27 – works with the Python **mcp-proxy ≥ 0.8** release, which truly supports stateless Streamable-HTTP. The Node 5.x proxy and the older `run_command` examples will NOT work.
 
-```bash
-export CLAUDE_BIN=/usr/bin/claude
-export ANTHROPIC_API_KEY=<your-key>
-# stateless HTTP bridge on :8081
-npx --yes mcp-proxy --stateless --server stream --port 8081 /usr/bin/claude mcp serve
-```
+1. Install Claude CLI inside WSL (or any Linux VM).
+   ```bash
+   # download the binary, then
+   sudo mv ~/Downloads/claude /usr/local/bin/claude && chmod +x /usr/local/bin/claude
+   claude --version  # sanity-check
+   ```
 
-2. Set the env-var before starting the backend (or via Settings panel):
+2. Install the Python proxy once (isolated via `pipx`).
+   ```bash
+   sudo apt install -y pipx
+   pipx install "mcp-proxy>=0.8,<1"
+   ````
+   This puts the `mcp-proxy` CLI at `~/.local/bin/mcp-proxy` (already on PATH after `pipx ensurepath`).
 
-```bash
-export CLAUDE_MCP_URL="http://localhost:8081/mcp"
-npm run backend
-```
+3. Run the bridge in **stateless Streamable-HTTP** mode on port 8081.
+   ```bash
+   export ANTHROPIC_API_KEY=<your-key>
 
-3. In the Slash terminal invoke tools:
+   mcp-proxy \
+     --stateless \
+     --transport streamablehttp \
+     --host 0.0.0.0 \
+     --port 8081 \
+     -- \
+     claude mcp serve
+   # console →  starting server on port 8081
+   ```
 
-```text
-tool claude_mcp_invoke {"tool":"run_command","params":{"command":"echo hello"}}
-```
+4. Tell the Slash backend where to find it (note the trailing slash `/`).
+   ```bash
+   # Windows PowerShell or .env
+   CLAUDE_MCP_URL=http://localhost:8081/mcp/
+   ANTHROPIC_API_KEY=<your-key>
+   npm run backend
+   ```
 
-Outputs from Claude CLI stream back into the pane.
+5. Invoke Claude tools from the browser terminal:
+   ```text
+   tool claude_mcp_invoke {"tool":"Bash","params":{"command":"echo hello","apiKey":"<your-key>"}}
+   ```
+   Expect the string `hello` streamed back into the terminal pane.
 
-> Having trouble? See **docs/claude-mcp-troubleshooting.md** for common errors (e.g. "Session not found") and step-by-step fixes.
+Troubleshooting tips (full guide in **docs/claude-mcp-troubleshooting.md**):
+* 404 "Session not found" → ensure you are running the **Python** proxy with `--stateless` **and** using the trailing `/mcp/` URL.
+* 406 "Not Acceptable" → include both MIME types in the `Accept` header (`application/json, text/event-stream`).
+* ECONNREFUSED from Windows → add `--host 0.0.0.0` and use the WSL IP instead of `localhost` (e.g. `172.xx.xx.xx`).
