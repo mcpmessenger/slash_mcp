@@ -9,7 +9,7 @@ import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import { getSupabase, initSupabase } from './supabaseClient.js';
 import { z } from 'zod';
-import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL } from './config.js';
+import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL, ALLOW_ALL_COMMANDS } from './config.js';
 import { registry } from './ToolRegistry.js';
 import './integrations/ZapierTool.js';
 import './integrations/OpenAITool.js';
@@ -429,7 +429,7 @@ wss.on('connection', (socket, req) => {
           if (!command) return respond({ error: { code: -32602, message: 'command param required' } });
           const cmdParts = command.trim().split(/\s+/);
           const baseCmd = cmdParts[0];
-          if (!ALLOWED_CMDS.includes(baseCmd)) {
+          if (!ALLOW_ALL_COMMANDS && !ALLOWED_CMDS.includes(baseCmd)) {
             return respond({ error: { code: -32005, message: 'Command not allowed', data: { allowed: ALLOWED_CMDS } } });
           }
 

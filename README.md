@@ -1,4 +1,8 @@
-# Slash / MCP – Full-Stack MVP
+# Slash / MCP – **MVP v1 (2025-06-27)** 🎉
+
+> Feature-complete: real-time streaming, Supabase persistence, dual-terminal forwarding, global toast notifications, first-run walkthrough.
+>
+> `main` ← merge candidate branch: **v1-mvp**  (`f2b11cf`)
 
 A single-repo prototype implementing the **Model Context Protocol (MCP)**.  
 The goal is to explore how a browser client, an AI-assistant workflow and a thin backend can cooperate through a JSON-RPC 2.0 WebSocket.
@@ -105,6 +109,17 @@ id uname cat head tail env who ps
 ```
 
 If you need more, add them to `ALLOWED_CMDS` in `server/index.js`.
+
+Add or override via the env-var:
+
+```bash
+# allow extra cmds (comma-separated)
+ALLOWED_CMDS="uname,id,who" npm run backend
+
+# or disable the whitelist entirely while developing
+ALLOWED_CMDS=ALL npm run backend
+```
+The server reloads the list on startup, so make sure to restart after changing it.
 
 > Tip: set `MCP_SHELL_IMAGE` to change the container (e.g. `debian:stable-slim`). 
 

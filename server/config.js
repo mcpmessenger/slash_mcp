@@ -15,10 +15,21 @@ const DEFAULT_ALLOWED_CMDS = [
   'id', 'uname', 'cat', 'head', 'tail', 'env', 'who', 'ps',
 ];
 
-// Allow overriding/augmenting the whitelist via the ALLOWED_CMDS env variable (comma-separated)
-export const ALLOWED_CMDS = process.env.ALLOWED_CMDS
-  ? process.env.ALLOWED_CMDS.split(',').map((c) => c.trim()).filter(Boolean)
-  : DEFAULT_ALLOWED_CMDS;
+let extra = [];
+let ALLOW_ALL_COMMANDS = false;
+
+if (process.env.ALLOWED_CMDS) {
+  const raw = process.env.ALLOWED_CMDS.trim();
+  if (raw.toUpperCase() === 'ALL' || raw === '*') {
+    ALLOW_ALL_COMMANDS = true;
+  } else {
+    extra = raw.split(',').map((c) => c.trim()).filter(Boolean);
+  }
+}
+
+const ALLOWED_CMDS = [...new Set([...DEFAULT_ALLOWED_CMDS, ...extra])];
+
+export { ALLOW_ALL_COMMANDS, ALLOWED_CMDS };
 
 // JWT secret for authenticating WebSocket connections
 export const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
