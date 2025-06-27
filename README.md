@@ -187,3 +187,5 @@ tool claude_mcp_invoke {"tool":"run_command","params":{"command":"echo hello"}}
 ```
 
 Outputs from Claude CLI stream back into the pane.
+
+> Having trouble? See **docs/claude-mcp-troubleshooting.md** for common errors (e.g. "Session not found") and step-by-step fixes.
