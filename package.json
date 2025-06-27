@@ -12,6 +12,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "smoke": "node scripts/smoke.js",
+    "commands:test": "node scripts/commandSmoke.js",
+    "integration:test": "node scripts/integrationForward.js",
     "backend": "node --experimental-modules server/index.js",
     "claude:mcp": "claude --mcp-server --http-port 8081 | cat",
     "build:schemas": "node scripts/genSchemas.js",
