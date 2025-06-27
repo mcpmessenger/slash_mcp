@@ -99,3 +99,10 @@ Suggested Next Steps
   3. UI polish: chip styling, hover slots, templates drawer, sandbox flags.
 
 *Next actions*: implement Phase-1 smart parser scaffolding; prototype chip-based Sidebar UI; update tests for new parser layer. 
+
+## 2025-06-27 – MVP v1 complete
+
+* Finished Sprint 4 (toast notifications, Joyride walkthrough).
+* Supabase persistence wired; uploads saved to bucket `resources` and public URLs shown.
+* Added integration tests (`scripts/integrationForward.js`) covering forwarding, streaming and resource round-trip.
+* README refreshed with env-var tips. Branch `v1-mvp` ready for PR → `main`. 

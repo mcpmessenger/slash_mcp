@@ -170,17 +170,41 @@ registry.register({
       
       switch (operation) {
         case 'list_repositories':
-        case 'list_repos':
-          mcpRequest = {
+        case 'list_repos': {
+          const baseReq = {
             jsonrpc: '2.0',
             id: Date.now(),
             method: 'tools/call',
-            params: {
-              name: 'repos/list_user_repos',
-              arguments: {}
-            }
+            params: { arguments: {} }
           };
-          break;
+
+          // Try new tool name first
+          const possibleNames = [
+            'list_user_repos',            // observed in newer GitHub MCP builds
+            'repos/list_user_repos',      // legacy path
+            'repos/list_repos',           // very old path
+          ];
+
+          let lastError;
+          for (const name of possibleNames) {
+            try {
+              mcpRequest = { ...baseReq, params: { ...baseReq.params, name } };
+              const resp = await sendMCPRequest(mcpRequest);
+              if (!resp.error) {
+                return {
+                  operation,
+                  success: true,
+                  data: resp.result,
+                  timestamp: new Date().toISOString(),
+                };
+              }
+              lastError = resp.error;
+            } catch (e) {
+              lastError = e;
+            }
+          }
+          throw lastError || { code: -32603, message: 'list_repositories failed' };
+        }
           
         case 'get_repository':
           if (!operationParams.owner || !operationParams.repo) {

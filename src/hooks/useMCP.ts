@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { MCPConnection, MCPMessage, MCPResource, MCPTool, MCPPrompt } from '../types/mcp';
 import { MCPWebSocketClient } from '../lib/MCPWebSocketClient';
+import { useToast } from '../context/ToastContext';
 
 // Track how many connections we've made per base host so we can assign unique display names even across rapid connects.
 const connectionCounters: Record<string, number> = {};
@@ -32,6 +33,7 @@ export const useMCP = () => {
   const [supKey, setSupKeyState] = useState<string>(() => localStorage.getItem('supabase_key') ?? '');
   const [githubPat, setGithubPatState] = useState<string>(() => localStorage.getItem('github_pat') ?? '');
   const [isConnecting, setIsConnecting] = useState(false);
+  const { addToast } = useToast();
 
   // Persist prompts whenever they change
   useEffect(() => {
@@ -74,22 +76,52 @@ export const useMCP = () => {
         client,
       } as any;
 
-      // Automatically remove from state when socket closes
+      // Update status + attempt auto-reconnect on close
       client.onClose(() => {
-        setConnections(prev => prev.filter(c => c.id !== connection.id));
+        setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'disconnected' } : c));
+        addToast(`${displayName} disconnected`, 'error');
+        // Basic auto-reconnect with 3 attempts exponential backoff
+        const maxAttempts = 3;
+        let attempt = 0;
+        const retry = async () => {
+          attempt += 1;
+          if (attempt > maxAttempts) return;
+          setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'reconnecting' } : c));
+          addToast(`${displayName} reconnecting (attempt ${attempt})`);
+          try {
+            const newClient = new MCPWebSocketClient(serverUrl);
+            await newClient.waitUntilOpen();
+            // Replace client reference
+            client.onClose(() => {}); // no-op to avoid leaks
+            connection.client = newClient;
+            connection.status = 'connected';
+            setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'connected', client: newClient as any } : c));
+            addToast(`${displayName} reconnected`, 'success');
+
+            // Re-attach listeners
+            newClient.onClose(() => {
+              setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status: 'disconnected' } : c));
+            });
+
+            // Re-register
+            await newClient.send({ jsonrpc:'2.0', id: Date.now(), method:'mcp_register', params:{ connectionId: newClient.id, agentId: displayName } });
+          } catch {
+            setTimeout(retry, 1000 * Math.pow(2, attempt));
+          }
+        };
+        setTimeout(retry, 1000);
+      });
+
+      // Handle connection_status notifications
+      client.onNotification((msg: any) => {
+        if (msg.method === 'connection_status') {
+          const status = msg.params?.status ?? 'unknown';
+          if (status === 'connected') addToast(`${displayName} connected`, 'success');
+          setConnections(prev => prev.map(c => c.id === connection.id ? { ...c, status } : c));
+        }
       });
 
       setConnections(prev => [...prev, connection]);
-
-      // Register connection and logical agent ID with backend for forwarding
-      try {
-        await client.send({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: 'mcp_register',
-          params: { connectionId: client.id, agentId: displayName },
-        });
-      } catch {}
 
       // Fetch capabilities
       try {
@@ -170,10 +202,23 @@ export const useMCP = () => {
 
   /** Convenience helper to invoke a tool */
   const invokeTool = useCallback(async (connectionId: string, toolName: string, parameters: any) => {
-    // Auto-inject GitHub PAT if invoking GitHub tool
+    // Auto-inject GitHub PAT
     if (toolName === 'github_mcp_tool' && !parameters.github_token && githubPat) {
       parameters = { ...parameters, github_token: githubPat };
     }
+
+    // Auto-inject Supabase creds if missing
+    if (toolName === 'supabase_mcp_tool') {
+      const merged = { ...parameters } as any;
+      if (!merged.supabase_url && supUrl) {
+        merged.supabase_url = supUrl;
+      }
+      if (!merged.supabase_key && supKey) {
+        merged.supabase_key = supKey;
+      }
+      parameters = merged;
+    }
+
     const message: MCPMessage = {
       jsonrpc: '2.0',
       id: Date.now(),
@@ -181,7 +226,7 @@ export const useMCP = () => {
       params: { toolName, parameters },
     };
     return sendMessage(connectionId, message);
-  }, [sendMessage, githubPat]);
+  }, [sendMessage, githubPat, supUrl, supKey]);
 
   /** Convenience helper for OpenAI chat */
   const invokeChat = useCallback(async (connectionId: string, prompt: string) => {

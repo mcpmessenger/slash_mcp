@@ -3,9 +3,11 @@ import { motion } from 'framer-motion';
 import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
+import { useToast } from '../context/ToastContext';
 
 export const Settings: React.FC = () => {
   const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources, zapierWebhook, setZapierWebhook, supUrl, supKey, setSupabaseCredsLocal, zapierMcpUrl, setZapierMcpUrl, claudeMcpUrl, setClaudeMcpUrl, githubPat, setGithubPat } = useMCP();
+  const { addToast } = useToast();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
   const [claudeK, setClaudeK] = React.useState(anthropicKey);
@@ -33,12 +35,18 @@ export const Settings: React.FC = () => {
   };
 
   const handleSaveSupabase = async () => {
+    if (!connections[0]) {
+      addToast('Connect to an MCP server first', 'error');
+      return;
+    }
     setSupabaseCredsLocal(supabaseUrl.trim(), supabaseKeyVal.trim());
-    if (connections[0]) {
-      try {
-        await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKeyVal.trim());
-        await listResources(connections[0].id);
-      } catch (err) { alert('Backend rejected creds: '+(err as any).message); }
+    try {
+      await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKeyVal.trim());
+      await listResources(connections[0].id);
+      addToast('Supabase creds saved', 'success');
+    } catch (err:any) {
+      addToast('Backend rejected creds: '+err.message, 'error');
+      return;
     }
     setSbSaved(true);
     setTimeout(()=>setSbSaved(false),1500);

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X as Close, StopCircle } from 'lucide-react';
 import { useMCP } from '../context/MCPContext';
+import TextareaAutosize from 'react-textarea-autosize';
 
 interface TerminalProps {
   onClose: () => void;
@@ -22,7 +23,7 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini } = useMCP();
+  const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini, sendMessage } = useMCP();
 
   // history handling
   const [history, setHistory] = useState<string[]>([]);
@@ -37,6 +38,18 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
   const suggestions = ['@2 ls', 'chat "Hello world"', 'claude "Hi"', 'gemini "Idea"', 'ping', 'dir', 'ls'];
 
+  const [completionIdx, setCompletionIdx] = useState<number>(-1);
+
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  const computeCompletions = (prefix: string): string[] => {
+    const pool = [
+      ...suggestions,
+      ...connections.map((c,idx)=>`@${idx+1}`)
+    ];
+    return pool.filter(p=>p.startsWith(prefix) && p!==prefix);
+  };
+
   useEffect(() => {
     if (!selectedConn && connections.length > 0) {
       setSelectedConn(connections[0].id);
@@ -44,14 +57,25 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   }, [connections, selectedConn]);
 
   const scrollToBottom = () => {
+    if (!autoScroll) return;
     requestAnimationFrame(() => {
-      containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+      const el = containerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [entries]);
+
+  // Detect user scroll position to toggle autoScroll
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setAutoScroll(nearBottom);
+  };
 
   useEffect(() => {
     const unsub = onNotification((msg) => {
@@ -106,6 +130,30 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
       return;
     }
 
+    // Raw RPC support
+    if (verb === 'rpc') {
+      const method = parts[1];
+      const jsonTail = command.slice(command.indexOf(method) + method.length).trim();
+      let paramsObj: any = {};
+      if (jsonTail) {
+        try { paramsObj = JSON.parse(jsonTail); } catch {
+          setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Invalid JSON params', status:'error'}:e));
+          return;
+        }
+      }
+      if(!targetId){
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Not connected', status:'error'}:e));
+        return;
+      }
+      try {
+        const resp = await sendMessage(targetId, { jsonrpc:'2.0', id:Date.now(), method, params: paramsObj });
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:JSON.stringify(resp,null,2), status:'success'}:e));
+      } catch(err:any){
+        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:err.message??'RPC failed', status:'error'}:e));
+      }
+      return;
+    }
+
     // New: tool shorthand eg: tool openai_tool {"prompt":"hi"}
     if (verb === 'tool') {
       const toolName = parts[1];
@@ -128,7 +176,11 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
         if ('result' in res) {
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: JSON.stringify(res.result, null, 2), status: 'success' } : e));
         } else {
-          const msg = (res as any).error?.message ?? 'Error';
+          const errObj: any = (res as any).error || {};
+          let msg = errObj.message ?? 'Error';
+          if (errObj.data && errObj.data.allowed) {
+            msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
+          }
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
         }
       } catch (err: any) {
@@ -160,7 +212,11 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
           entry.execId = res.result.execId;
           setEntries(prev => prev.map(e => e.id === id ? { ...e, execId: res.result.execId } : e));
         } else if ('error' in res) {
-          const msg = (res as any).error?.message ?? 'Error';
+          const errObj: any = (res as any).error || {};
+          let msg = errObj.message ?? 'Error';
+          if (errObj.data && errObj.data.allowed) {
+            msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
+          }
           setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
         }
       } catch (err: any) {
@@ -206,38 +262,53 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cmd = currentCommand.trim();
-    if (!cmd) return;
-    executeCommand(cmd);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowUp') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
       e.preventDefault();
-      setHistoryIdx((idx) => {
-        const newIdx = idx < 0 ? history.length - 1 : Math.max(0, idx - 1);
-        setCurrentCommand(history[newIdx] ?? '');
+      const parts = currentCommand.split(/\s+/);
+      const last = parts[parts.length-1];
+      const options = computeCompletions(last);
+      if (options.length===0) return;
+      const nextIdx = (completionIdx+1)%options.length;
+      parts[parts.length-1]=options[nextIdx];
+      setCurrentCommand(parts.join(' '));
+      setCompletionIdx(nextIdx);
+      return;
+    }
+    // reset completion cycle on other keys
+    setCompletionIdx(-1);
+
+    if (e.key==='Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const cmd = currentCommand.trim();
+      if(cmd) executeCommand(cmd);
+      return;
+    }
+    if (e.key==='ArrowUp' && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      setHistoryIdx(idx=>{
+        const newIdx = idx<0?history.length-1:Math.max(0,idx-1);
+        setCurrentCommand(history[newIdx]??'');
         return newIdx;
       });
-    } else if (e.key === 'ArrowDown') {
+    }
+    if (e.key==='ArrowDown' && !e.shiftKey && !e.altKey) {
       e.preventDefault();
-      setHistoryIdx((idx) => {
-        const newIdx = idx >= history.length - 1 ? history.length - 1 : idx + 1;
-        setCurrentCommand(history[newIdx] ?? '');
+      setHistoryIdx(idx=>{
+        const newIdx = idx>=history.length-1?history.length-1:idx+1;
+        setCurrentCommand(history[newIdx]??'');
         return newIdx;
       });
     }
   };
 
   // --- Drag-and-drop support from Sidebar ---
-  const handleDragOverInput = (e: React.DragEvent<HTMLInputElement>) => {
+  const handleDragOverInput = (e: React.DragEvent<HTMLTextAreaElement>) => {
     // Allow dropping by preventing default
     e.preventDefault();
   };
 
-  const handleDropOnInput = (e: React.DragEvent<HTMLInputElement>) => {
+  const handleDropOnInput = (e: React.DragEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     const raw = e.dataTransfer.getData('application/json');
     if (!raw) return;
@@ -334,28 +405,33 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-3 bg-gray-900 border-b border-gray-700 flex items-center space-x-2">
+          <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
+            const cmd = currentCommand.trim();
+            if (!cmd) return;
+            executeCommand(cmd);
+          }} className="p-3 bg-gray-900 border-b border-gray-700 flex items-center space-x-2">
             <span className="text-green-400 font-mono">$</span>
-            <input
-              type="text"
-              autoFocus
+            <TextareaAutosize
+              minRows={1}
+              maxRows={6}
               value={currentCommand}
-              onChange={(e) => setCurrentCommand(e.target.value)}
+              onChange={(e)=>setCurrentCommand(e.target.value)}
               onKeyDown={handleKeyDown}
               onDragOver={handleDragOverInput}
               onDrop={handleDropOnInput}
-              className="flex-1 bg-transparent outline-none text-gray-100 placeholder-gray-500 font-mono text-sm"
-              placeholder="Type a command..."
-              list="cmd-suggestions"
+              className="flex-1 bg-transparent outline-none text-gray-100 placeholder-gray-500 font-mono text-sm resize-none"
+              placeholder="Type a command... (Shift+Enter for newline)"
             />
-            <datalist id="cmd-suggestions">
-              {suggestions.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
           </form>
 
-          <div ref={containerRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-2 bg-gray-950/60">
+          <div
+            ref={containerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-2 bg-gray-950/60"
+            onMouseEnter={() => setAutoScroll(false)}
+            onMouseLeave={() => setAutoScroll(true)}
+          >
             {entries.map(entry => (
               <div key={entry.id}>
                 <div className="flex items-start">
