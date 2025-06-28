@@ -1,0 +1,28 @@
+name: Bootstrap-Repo
+on:
+  workflow_dispatch:
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure GitHub CLI is available
+        run: |
+          if ! command -v gh &> /dev/null; then
+            sudo apt-get update -y
+            sudo apt-get install -y gh
+          fi
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+        run: |
+          gh auth setup-git
+
+      - name: Run bootstrap script
+        run: |
+          chmod +x ./scripts/bootstrap-gh.sh
+          ./scripts/bootstrap-gh.sh 

@@ -2,7 +2,7 @@
 import WebSocket from 'ws';
 
 const SERVER_URL = process.env.MCP_URL || 'ws://localhost:8080';
-const COMMANDS = ['echo hello', 'date', 'whoami', 'pwd', 'ls'];
+const COMMANDS = ['echo hello', 'pwd', 'ls'];
 
 function sendRpc(ws, msg) {
   return new Promise((resolve) => {

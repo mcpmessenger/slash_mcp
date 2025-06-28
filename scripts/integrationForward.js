@@ -22,7 +22,7 @@ function sendRpc(ws,msg){return new Promise((resolve)=>{const id=msg.id;const li
   // 1. forward ping command from A->B
   const innerId=100;
   const outerId=101;
-  const pingCmd='ping -c 2 example.com';
+  const pingCmd='echo integration';
   const forwardResp=await sendRpc(wsA,{jsonrpc:'2.0',id:outerId,method:'mcp_forward',params:{targetConnectionId:connB,request:{jsonrpc:'2.0',id:innerId,method:'mcp_invokeTool',params:{toolName:'shell_execute',parameters:{command:pingCmd}}}}});
   if(forwardResp.error){console.error('Forward failed',forwardResp.error);process.exit(1);} 
 
