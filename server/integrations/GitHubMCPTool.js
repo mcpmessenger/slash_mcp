@@ -20,19 +20,23 @@ async function initializeGitHubMCP(token) {
   try {
     // Check if Docker is available, otherwise use local binary
     const useDocker = process.env.GITHUB_MCP_USE_DOCKER !== 'false';
-    
+
     if (useDocker) {
       // Use Docker container
-      githubMCPProcess = crossSpawn('docker', [
-        'run',
-        '-i',
-        '--rm',
-        '-e',
-        'GITHUB_PERSONAL_ACCESS_TOKEN=' + token,
-        'ghcr.io/github/github-mcp-server'
-      ], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+      githubMCPProcess = crossSpawn(
+        'docker',
+        [
+          'run',
+          '-i',
+          '--rm',
+          '-e',
+          'GITHUB_PERSONAL_ACCESS_TOKEN=' + token,
+          'ghcr.io/github/github-mcp-server',
+        ],
+        {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
     } else {
       // Use local binary (assumes github-mcp-server is in PATH)
       githubMCPProcess = crossSpawn('github-mcp-server', ['stdio'], {
@@ -40,8 +44,9 @@ async function initializeGitHubMCP(token) {
         env: {
           ...process.env,
           GITHUB_PERSONAL_ACCESS_TOKEN: token,
-          GITHUB_TOOLSETS: process.env.GITHUB_TOOLSETS || 'repos,issues,pull_requests,actions,context'
-        }
+          GITHUB_TOOLSETS:
+            process.env.GITHUB_TOOLSETS || 'repos,issues,pull_requests,actions,context',
+        },
       });
     }
 
@@ -77,7 +82,7 @@ async function sendMCPRequest(request) {
     }, 30000);
 
     let responseBuffer = '';
-    
+
     const onData = (data) => {
       responseBuffer += data.toString();
       try {
@@ -97,62 +102,65 @@ async function sendMCPRequest(request) {
 
 // Schema for GitHub operations
 const githubSchema = z.object({
-  operation: z.enum([
-    'list_repositories',
-    'list_repos',
-    'get_repository',
-    'create_issue',
-    'list_issues',
-    'get_issue',
-    'create_pull_request',
-    'list_pull_requests',
-    'get_pull_request',
-    'get_file_contents',
-    'create_file',
-    'update_file',
-    'list_branches',
-    'create_branch',
-    'get_workflow_runs',
-    'trigger_workflow'
-  ]).default('list_repositories'),
-  
+  operation: z
+    .enum([
+      'list_repositories',
+      'list_repos',
+      'get_repository',
+      'create_issue',
+      'list_issues',
+      'get_issue',
+      'create_pull_request',
+      'list_pull_requests',
+      'get_pull_request',
+      'get_file_contents',
+      'create_file',
+      'update_file',
+      'list_branches',
+      'create_branch',
+      'get_workflow_runs',
+      'trigger_workflow',
+    ])
+    .default('list_repositories'),
+
   // Repository parameters
   owner: z.string().optional(),
   repo: z.string().optional(),
-  
+
   // Issue parameters
   title: z.string().optional(),
   body: z.string().optional(),
   labels: z.array(z.string()).optional(),
   assignees: z.array(z.string()).optional(),
   issue_number: z.number().optional(),
-  
+
   // Pull request parameters
   head: z.string().optional(),
   base: z.string().optional(),
-  
+
   // File parameters
   path: z.string().optional(),
   content: z.string().optional(),
   message: z.string().optional(),
   branch: z.string().optional(),
-  
+
   // Workflow parameters
   workflow_id: z.string().optional(),
   ref: z.string().optional(),
   inputs: z.record(z.any()).optional(),
-  
+
   // Authentication
-  github_token: z.string().optional()
+  github_token: z.string().optional(),
 });
 
 registry.register({
   name: 'github_mcp_tool',
-  description: 'Interact with GitHub repositories, issues, pull requests, and workflows using GitHub\'s official MCP server',
+  description:
+    "Interact with GitHub repositories, issues, pull requests, and workflows using GitHub's official MCP server",
   inputSchema: githubSchema,
   handler: async (params) => {
     const { operation, github_token, ...operationParams } = params;
-    
+
     // Use provided token or environment variable
     const token = github_token || process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
     if (!token) {
@@ -167,7 +175,7 @@ registry.register({
 
     try {
       let mcpRequest;
-      
+
       switch (operation) {
         case 'list_repositories':
         case 'list_repos': {
@@ -175,14 +183,14 @@ registry.register({
             jsonrpc: '2.0',
             id: Date.now(),
             method: 'tools/call',
-            params: { arguments: {} }
+            params: { arguments: {} },
           };
 
           // Try new tool name first
           const possibleNames = [
-            'list_user_repos',            // observed in newer GitHub MCP builds
-            'repos/list_user_repos',      // legacy path
-            'repos/list_repos',           // very old path
+            'list_user_repos', // observed in newer GitHub MCP builds
+            'repos/list_user_repos', // legacy path
+            'repos/list_repos', // very old path
           ];
 
           let lastError;
@@ -205,7 +213,7 @@ registry.register({
           }
           throw lastError || { code: -32603, message: 'list_repositories failed' };
         }
-          
+
         case 'get_repository':
           if (!operationParams.owner || !operationParams.repo) {
             throw { code: -32602, message: 'owner and repo parameters required' };
@@ -218,12 +226,12 @@ registry.register({
               name: 'get_repository',
               arguments: {
                 owner: operationParams.owner,
-                repo: operationParams.repo
-              }
-            }
+                repo: operationParams.repo,
+              },
+            },
           };
           break;
-          
+
         case 'create_issue':
           if (!operationParams.owner || !operationParams.repo || !operationParams.title) {
             throw { code: -32602, message: 'owner, repo, and title parameters required' };
@@ -240,12 +248,12 @@ registry.register({
                 title: operationParams.title,
                 body: operationParams.body || '',
                 labels: operationParams.labels || [],
-                assignees: operationParams.assignees || []
-              }
-            }
+                assignees: operationParams.assignees || [],
+              },
+            },
           };
           break;
-          
+
         case 'list_issues':
           if (!operationParams.owner || !operationParams.repo) {
             throw { code: -32602, message: 'owner and repo parameters required' };
@@ -258,12 +266,12 @@ registry.register({
               name: 'list_issues',
               arguments: {
                 owner: operationParams.owner,
-                repo: operationParams.repo
-              }
-            }
+                repo: operationParams.repo,
+              },
+            },
           };
           break;
-          
+
         case 'get_file_contents':
           if (!operationParams.owner || !operationParams.repo || !operationParams.path) {
             throw { code: -32602, message: 'owner, repo, and path parameters required' };
@@ -278,15 +286,24 @@ registry.register({
                 owner: operationParams.owner,
                 repo: operationParams.repo,
                 path: operationParams.path,
-                ref: operationParams.branch || 'main'
-              }
-            }
+                ref: operationParams.branch || 'main',
+              },
+            },
           };
           break;
-          
+
         case 'create_pull_request':
-          if (!operationParams.owner || !operationParams.repo || !operationParams.title || !operationParams.head || !operationParams.base) {
-            throw { code: -32602, message: 'owner, repo, title, head, and base parameters required' };
+          if (
+            !operationParams.owner ||
+            !operationParams.repo ||
+            !operationParams.title ||
+            !operationParams.head ||
+            !operationParams.base
+          ) {
+            throw {
+              code: -32602,
+              message: 'owner, repo, title, head, and base parameters required',
+            };
           }
           mcpRequest = {
             jsonrpc: '2.0',
@@ -300,36 +317,38 @@ registry.register({
                 title: operationParams.title,
                 body: operationParams.body || '',
                 head: operationParams.head,
-                base: operationParams.base
-              }
-            }
+                base: operationParams.base,
+              },
+            },
           };
           break;
-          
+
         default:
           throw { code: -32602, message: `Unsupported operation: ${operation}` };
       }
 
       const response = await sendMCPRequest(mcpRequest);
-      
+
       if (response.error) {
-        throw { code: response.error.code || -32603, message: response.error.message || 'GitHub MCP server error' };
+        throw {
+          code: response.error.code || -32603,
+          message: response.error.message || 'GitHub MCP server error',
+        };
       }
 
       return {
         operation,
         success: true,
         data: response.result,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-
     } catch (error) {
       if (error.code) {
         throw error;
       }
       throw { code: -32603, message: `GitHub operation failed: ${error.message}` };
     }
-  }
+  },
 });
 
 // Cleanup function
@@ -339,4 +358,4 @@ process.on('exit', () => {
   }
 });
 
-export { initializeGitHubMCP, sendMCPRequest }; 
+export { initializeGitHubMCP, sendMCPRequest };

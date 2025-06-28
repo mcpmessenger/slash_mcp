@@ -47,7 +47,7 @@ export class ToolRegistry {
     return Array.from(this._tools.values()).map(({ name, description, inputSchema }) => ({
       name,
       description,
-      inputSchema: inputSchema ? inputSchema.toJSON?.() ?? undefined : undefined,
+      inputSchema: inputSchema ? (inputSchema.toJSON?.() ?? undefined) : undefined,
     }));
   }
 
@@ -68,7 +68,9 @@ export class ToolRegistry {
       try {
         params = tool.inputSchema.parse(params ?? {});
       } catch (err) {
-        return { error: { code: -32602, message: 'Invalid params', data: err.errors ?? err.message } };
+        return {
+          error: { code: -32602, message: 'Invalid params', data: err.errors ?? err.message },
+        };
       }
     }
 
@@ -86,4 +88,4 @@ export class ToolRegistry {
 }
 
 // Provide a singleton registry for convenience.
-export const registry = new ToolRegistry(); 
+export const registry = new ToolRegistry();

@@ -16,4 +16,4 @@ for (const [method, schema] of Object.entries(schemas)) {
   const json = zodToJsonSchema(schema, method);
   fs.writeFileSync(path.join(outDir, `${method}.json`), JSON.stringify(json, null, 2));
   console.log('wrote', method);
-} 
+}

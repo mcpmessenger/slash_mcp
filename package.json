@@ -14,10 +14,14 @@
     "smoke": "node scripts/smoke.js",
     "commands:test": "node scripts/commandSmoke.js",
     "integration:test": "node scripts/integrationForward.js",
+    "supabase:test": "node scripts/supabaseSmoke.js",
     "backend": "node --experimental-modules server/index.js",
     "claude:mcp": "claude --mcp-server --http-port 8081 | cat",
     "build:schemas": "node scripts/genSchemas.js",
-    "postinstall": "npm run build:schemas"
+    "postinstall": "npm run build:schemas",
+    "mcp:proxy": "node scripts/mcpProxy.js",
+    "dev:all": "concurrently -k \"npm run mcp:proxy\" \"npm run backend\" \"vite\"",
+    "prepare": "husky install"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.12.0",
@@ -61,6 +65,8 @@
     "typescript-eslint": "^8.3.0",
     "vite": "^5.4.2",
     "vitest": "^1.5.0",
-    "zod-to-json-schema": "^3.24.5"
+    "zod-to-json-schema": "^3.24.5",
+    "concurrently": "^8.2.0",
+    "husky": "^9.0.11"
   }
 }

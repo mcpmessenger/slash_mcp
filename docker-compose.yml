@@ -5,7 +5,7 @@ services:
     build: .
     container_name: slash_mcp_app
     ports:
-      - "8080:8080"   # WebSocket server
+      - '8080:8080' # WebSocket server
     environment:
       - NODE_ENV=production
       - PORT=8080
@@ -15,11 +15,14 @@ services:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - CLAUDE_MCP_URL=http://claude_mcp:8081/mcp
+      - NODE_OPTIONS=--max-old-space-size=1024
     volumes:
       - ./storage:/usr/src/app/storage
       - ./logs:/usr/src/app/logs
     depends_on:
       - redis
+      - claude_mcp
 
   redis:
     image: redis:7-alpine
@@ -28,5 +31,17 @@ services:
       - redis_data:/data
     restart: always
 
+  claude_mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.claude
+    container_name: slash_mcp_claude
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PORT=8081
+      - NODE_OPTIONS=--max-old-space-size=2048
+    ports:
+      - '8081:8081'
+
 volumes:
-  redis_data: 
+  redis_data:

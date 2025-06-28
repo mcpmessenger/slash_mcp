@@ -8,11 +8,21 @@ interface ApiKeyModalProps {
 }
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
-  const { openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey } = useMCP();
+  const {
+    openAiKey,
+    setOpenAiKey,
+    anthropicKey,
+    setAnthropicKey,
+    geminiKey,
+    setGeminiKey,
+    mcpApiKey,
+    setMcpApiKey,
+  } = useMCP();
   const [key, setKey] = useState(openAiKey);
   const [claudeK, setClaudeK] = useState(anthropicKey);
   const [gemKey, setGemKey] = useState(geminiKey);
   const [saved, setSaved] = useState(false);
+  const [mcpKey, setMcpKey] = useState(mcpApiKey);
 
   useEffect(() => {
     if (saved) {
@@ -25,6 +35,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
     setOpenAiKey(key.trim());
     setAnthropicKey(claudeK.trim());
     setGeminiKey(gemKey.trim());
+    setMcpApiKey(mcpKey.trim());
     setSaved(true);
   };
 
@@ -61,7 +72,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
             className="w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
           />
 
-          <label className="block mt-4 text-xs text-gray-500 dark:text-gray-400 mb-1">Anthropic</label>
+          <label className="block mt-4 text-xs text-gray-500 dark:text-gray-400 mb-1">
+            Anthropic
+          </label>
           <input
             type="password"
             value={claudeK}
@@ -79,6 +92,17 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
             className="w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
           />
 
+          <label className="block mt-4 text-xs text-gray-500 dark:text-gray-400 mb-1">
+            MCP API Key
+          </label>
+          <input
+            type="password"
+            value={mcpKey}
+            placeholder="dev123"
+            onChange={(e) => setMcpKey(e.target.value)}
+            className="w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
+          />
+
           <button
             onClick={handleSave}
             className="w-full mt-6 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded"
@@ -91,4 +115,4 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onClose }) => {
       </motion.div>
     </AnimatePresence>
   );
-}; 
+};

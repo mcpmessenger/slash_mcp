@@ -35,7 +35,10 @@ export const MultiClientManager: React.FC<MultiClientManagerProps> = ({ onClose 
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-700">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Clients</h2>
-            <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-800">
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-dark-800"
+            >
               <Close className="w-4 h-4 text-gray-600 dark:text-dark-300" />
             </button>
           </div>
@@ -59,12 +62,19 @@ export const MultiClientManager: React.FC<MultiClientManagerProps> = ({ onClose 
 
           {/* Client list */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {connections.map(conn => (
-              <div key={conn.id} className="flex items-center justify-between p-3 bg-gray-100 dark:bg-dark-800 rounded-lg">
+            {connections.map((conn) => (
+              <div
+                key={conn.id}
+                className="flex items-center justify-between p-3 bg-gray-100 dark:bg-dark-800 rounded-lg"
+              >
                 <div className="flex items-center space-x-2">
-                  <Circle className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`} />
+                  <Circle
+                    className={`w-3 h-3 ${conn.status === 'connected' ? 'text-green-500' : 'text-red-500'}`}
+                  />
                   <div>
-                    <div className="text-sm font-medium text-gray-800 dark:text-white">{conn.server.name}</div>
+                    <div className="text-sm font-medium text-gray-800 dark:text-white">
+                      {conn.server.name}
+                    </div>
                     <div className="text-xs text-gray-500 dark:text-dark-400">{conn.id}</div>
                   </div>
                 </div>
@@ -78,11 +88,13 @@ export const MultiClientManager: React.FC<MultiClientManagerProps> = ({ onClose 
               </div>
             ))}
             {connections.length === 0 && (
-              <p className="text-sm text-gray-600 dark:text-dark-400 text-center">No clients connected.</p>
+              <p className="text-sm text-gray-600 dark:text-dark-400 text-center">
+                No clients connected.
+              </p>
             )}
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
-}; 
+};

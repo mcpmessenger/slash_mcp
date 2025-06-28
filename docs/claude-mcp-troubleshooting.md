@@ -6,7 +6,7 @@ This page lists the most common issues encountered while running the Claude Code
 
 ## 1. "HTTP 404 – Session not found"
 
-**Cause**  `mcp-proxy` is in *state-ful* mode and will only accept requests that include a valid `mcp-session-id`. The stock build of the bridge does *not* return a session-id from the `initialize` method, so every subsequent call fails.
+**Cause** `mcp-proxy` is in _state-ful_ mode and will only accept requests that include a valid `mcp-session-id`. The stock build of the bridge does _not_ return a session-id from the `initialize` method, so every subsequent call fails.
 
 ### Fix (recommended)
 
@@ -38,11 +38,11 @@ Keep `--stateful` and supply your own session-id header in every request:
 
 ```bash
 uuid=$(uuidgen)                             # or any non-empty value
-curl -X POST http://localhost:8081/mcp \ 
-  -H "Content-Type: application/json" \ 
-  -H "x-api-key: $ANTHROPIC_API_KEY" \ 
-  -H "anthropic-version: 2023-06-01" \ 
-  -H "mcp-session-id: $uuid" \ 
+curl -X POST http://localhost:8081/mcp \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "mcp-session-id: $uuid" \
   -d '{"jsonrpc":"2.0","id":1,"method":"mcp_invokeTool","params":{"toolName":"run_command","parameters":{"command":"echo hi"}}}'
 ```
 
@@ -98,15 +98,15 @@ pkill -f mcp-proxy          # then restart
 
 ## 5. Flags cheat-sheet
 
-| Mode | Command |
-|------|---------|
-| Stateless (recommended) | `npx --yes mcp-proxy --stateless --server stream --port 8081 "$(which claude)" mcp serve` |
-| Stateful | `npx --yes mcp-proxy --stateful   --server stream --port 8081 "$(which claude)" mcp serve` |
+| Mode                    | Command                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| Stateless (recommended) | `npx --yes mcp-proxy --stateless --server stream --port 8081 "$(which claude)" mcp serve`  |
+| Stateful                | `npx --yes mcp-proxy --stateful   --server stream --port 8081 "$(which claude)" mcp serve` |
 
 ---
 
 ### See also
 
-* `scripts/claudeSmoke.js` – automated integration test (writes to `debug-log.txt`).
-* `env.example` – shows default `CLAUDE_MCP_URL` and other useful env-vars.
-* `README.md` – full project overview. 
+- `scripts/claudeSmoke.js` – automated integration test (writes to `debug-log.txt`).
+- `env.example` – shows default `CLAUDE_MCP_URL` and other useful env-vars.
+- `README.md` – full project overview.

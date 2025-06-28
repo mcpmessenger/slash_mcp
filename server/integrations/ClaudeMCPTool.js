@@ -17,12 +17,16 @@ const mcpSchema = z.object({
 });
 
 function defaultServerUrl(override) {
-  return (
-    override ||
-    process.env.CLAUDE_MCP_URL ||
-    'http://localhost:8081'
-  );
+  let url = override || process.env.CLAUDE_MCP_URL || 'http://localhost:8081';
+  // Ensure the URL ends with the MCP endpoint path so callers don\'t have to remember the suffix
+  if (!url.endsWith('/mcp')) {
+    // Avoid double slashes
+    url = url.replace(/\/+$/, '') + '/mcp';
+  }
+  return url;
 }
+
+console.log('Claude endpoint:', defaultServerUrl());
 
 registry.register({
   name: 'claude_mcp_invoke',
@@ -35,13 +39,38 @@ registry.register({
   handler: async ({ tool, params = {}, serverUrl }, _ctx) => {
     const url = defaultServerUrl(serverUrl);
 
-    // Helper to perform POST JSON-RPC
-    const baseHeaders = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    // Extract optional apiKey and strip it from params before forwarding
+    const { apiKey, ...forwardParams } = params || {};
+
+    // Helper to perform POST JSON-RPC with optional auth header
+    const baseHeaders = {
+      'Content-Type': 'application/x-ndjson',
+      // Some MCP servers require the client to accept SSE streams during first POST
+      Accept: 'application/json, text/event-stream',
+      'anthropic-version': '2023-06-01',
+    };
+
+    // Default API key from env if caller didn't supply one
+    const envKey = process.env.ANTHROPIC_API_KEY;
+
+    /** @param {any} body @param {Record<string,string>} extraHeaders */
     const postRpc = async (body, extraHeaders = {}) => {
+      const authHeaders = {};
+      const keyToUse = apiKey || envKey;
+      if (keyToUse) {
+        authHeaders['x-api-key'] = keyToUse;
+        authHeaders['Authorization'] = `Bearer ${keyToUse}`;
+      }
+      const payload = JSON.stringify(body) + '\n';
       const res = await fetch(url, {
         method: 'POST',
-        headers: { ...baseHeaders, ...extraHeaders },
-        body: JSON.stringify(body),
+        headers: {
+          ...baseHeaders,
+          ...authHeaders,
+          ...extraHeaders,
+          'Content-Length': Buffer.byteLength(payload, 'utf8').toString(),
+        },
+        body: payload,
       });
       return res;
     };
@@ -61,15 +90,15 @@ registry.register({
     const rpcBody = {
       jsonrpc: '2.0',
       id: Date.now() + 1,
-      method: 'mcp_invokeTool',
+      method: 'tools/call',
       params: {
-        toolName: tool,
-        parameters: params,
+        name: tool,
+        arguments: forwardParams,
       },
     };
 
     try {
-      const res = await postRpc(rpcBody, sessionId ? { 'Mcp-Session-Id': sessionId } : {});
+      const res = await postRpc(rpcBody, sessionId ? { 'mcp-session-id': sessionId } : {});
 
       if (!res.ok) {
         const text = await res.text();
@@ -100,4 +129,4 @@ registry.register({
       throw { code: -32053, message: err.message ?? 'Claude MCP invocation failed' };
     }
   },
-}); 
+});

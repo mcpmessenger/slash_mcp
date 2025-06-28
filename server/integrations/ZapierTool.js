@@ -42,4 +42,4 @@ registry.register({
       throw { code: -32022, message: err.message ?? 'Zapier call failed' };
     }
   },
-}); 
+});

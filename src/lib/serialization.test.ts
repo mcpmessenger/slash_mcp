@@ -25,4 +25,4 @@ describe('serialization helpers', () => {
     expect(parsed.data).instanceOf(ArrayBuffer);
     expect(new Uint8Array(parsed.data as ArrayBuffer)).toEqual(new Uint8Array(buffer));
   });
-}); 
+});

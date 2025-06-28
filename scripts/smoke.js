@@ -11,9 +11,11 @@ function waitForServer(url, timeout = 10000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     (function check() {
-      http.get(url, () => resolve())
+      http
+        .get(url, () => resolve())
         .on('error', () => {
-          if (Date.now() - start > timeout) return reject(new Error('Server did not start in time'));
+          if (Date.now() - start > timeout)
+            return reject(new Error('Server did not start in time'));
           setTimeout(check, 250);
         });
     })();
@@ -22,7 +24,10 @@ function waitForServer(url, timeout = 10000) {
 
 (async () => {
   console.log('📦 Starting static server...');
-  const serveProc = spawn('npx', ['vite', 'preview', '--port', PORT, '--strictPort'], { stdio: 'ignore', shell: true });
+  const serveProc = spawn('npx', ['vite', 'preview', '--port', PORT, '--strictPort'], {
+    stdio: 'ignore',
+    shell: true,
+  });
 
   try {
     await waitForServer(URL);
@@ -38,7 +43,7 @@ function waitForServer(url, timeout = 10000) {
     await page.waitForSelector('body', { timeout: 15000 });
 
     // Small pause to ensure hydration finished
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
 
     // —————  Smoke test ends here —————
     console.log('🎉 Smoke test passed');
@@ -50,4 +55,4 @@ function waitForServer(url, timeout = 10000) {
     serveProc.kill();
     process.exit(1);
   }
-})(); 
+})();

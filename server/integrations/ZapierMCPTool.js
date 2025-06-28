@@ -60,7 +60,11 @@ registry.register({
       const rpcResp = await res.json();
 
       if (rpcResp.error) {
-        throw { code: rpcResp.error.code ?? -32042, message: rpcResp.error.message ?? 'Zapier MCP error', data: rpcResp.error.data };
+        throw {
+          code: rpcResp.error.code ?? -32042,
+          message: rpcResp.error.message ?? 'Zapier MCP error',
+          data: rpcResp.error.data,
+        };
       }
 
       return rpcResp.result;
@@ -69,4 +73,4 @@ registry.register({
       throw { code: -32043, message: err.message ?? 'Zapier MCP invocation failed' };
     }
   },
-}); 
+});

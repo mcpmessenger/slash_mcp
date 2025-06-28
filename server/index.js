@@ -9,7 +9,14 @@ import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import { getSupabase, initSupabase } from './supabaseClient.js';
 import { z } from 'zod';
-import { PORT, ALLOWED_CMDS, JWT_SECRET, AUTH_OPTIONAL, ALLOW_ALL_COMMANDS } from './config.js';
+import {
+  PORT,
+  ALLOWED_CMDS,
+  JWT_SECRET,
+  AUTH_OPTIONAL,
+  ALLOW_ALL_COMMANDS,
+  VALID_API_KEYS,
+} from './config.js';
 import { registry } from './ToolRegistry.js';
 import './integrations/ZapierTool.js';
 import './integrations/OpenAITool.js';
@@ -18,7 +25,7 @@ import './integrations/ClaudeMCPTool.js';
 import './integrations/GitHubMCPTool.js';
 import './integrations/SupabaseMCPTool.js';
 import logger from './logger.js';
-import { sanitizeFilename, sanitizeString } from './utils/sanitize.js';
+import { sanitizeFilename, sanitizeString, sanitizeShellInput } from './utils/sanitize.js';
 
 console.log('env OPENAI?', !!process.env.OPENAI_API_KEY);
 console.log('env ZAP?', process.env.ZAPIER_WEBHOOK_URL);
@@ -42,7 +49,14 @@ const httpServer = createServer(async (req, res) => {
       const stream = fs.createReadStream(filePath);
       // Basic content-type mapping
       const ext = path.extname(filePath).toLowerCase();
-      const mimeMap = { '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.bin': 'application/octet-stream' };
+      const mimeMap = {
+        '.txt': 'text/plain',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.bin': 'application/octet-stream',
+      };
       const ctype = mimeMap[ext] || 'application/octet-stream';
       stream.pipe(res);
       stream.on('open', () => res.writeHead(200, { 'Content-Type': ctype }));
@@ -89,14 +103,7 @@ const ROLE_PERMS = {
     zapier_trigger_zap: true,
     zapier_mcp_invoke: true,
     github_mcp_tool: true,
-    supabase_mcp_tool: [
-      'select',
-      'insert',
-      'update',
-      'delete',
-      'list_files',
-      'download_file',
-    ],
+    supabase_mcp_tool: ['select', 'insert', 'update', 'delete', 'list_files', 'download_file'],
   },
   admin: {
     shell_execute: true,
@@ -137,7 +144,12 @@ export function roleAllows(role, tool, operation = null) {
 
 function getExtFromMime(mime) {
   if (!mime) return '';
-  const map = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'text/plain': '.txt' };
+  const map = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/gif': '.gif',
+    'text/plain': '.txt',
+  };
   return map[mime] || '';
 }
 
@@ -168,7 +180,7 @@ export const schemas = {
 
 // Rate-limiting settings (can be overridden by env vars)
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // 1 min
-const MAX_MSGS_PER_WINDOW  = parseInt(process.env.MAX_MSGS_PER_WINDOW  || '60',    10); // 60 msgs
+const MAX_MSGS_PER_WINDOW = parseInt(process.env.MAX_MSGS_PER_WINDOW || '60', 10); // 60 msgs
 
 wss.on('connection', (socket, req) => {
   // Send initial status notification
@@ -178,7 +190,7 @@ wss.on('connection', (socket, req) => {
         jsonrpc: '2.0',
         method: 'connection_status',
         params: { status: 'connected' },
-      })
+      }),
     );
   } catch {}
 
@@ -203,8 +215,23 @@ wss.on('connection', (socket, req) => {
   // Optional JWT verification
   try {
     const url = new URL(req.url ?? '', `http://${req.headers.host}`);
-    const token = url.searchParams.get('token') || (req.headers['sec-websocket-protocol']?.toString().split('Bearer ')[1] ?? '');
-    if (token) {
+    const tokenParam = url.searchParams.get('token');
+    const wsProtocolHeader = req.headers['sec-websocket-protocol']?.toString();
+    const tokenHeader = wsProtocolHeader?.startsWith('Bearer ')
+      ? wsProtocolHeader.split('Bearer ')[1]
+      : '';
+
+    const apiKey = req.headers['x-api-key'] || url.searchParams.get('api_key');
+
+    if (apiKey) {
+      if (!VALID_API_KEYS.length || VALID_API_KEYS.includes(apiKey)) {
+        socket.role = 'developer';
+      } else {
+        socket.close(4003, 'invalid api key');
+        return;
+      }
+    } else if (tokenParam || tokenHeader) {
+      const token = tokenParam || tokenHeader;
       const payload = jwt.verify(token, JWT_SECRET);
       socket.jwtPayload = payload;
       socket.role = payload.role ?? 'guest';
@@ -273,7 +300,7 @@ wss.on('connection', (socket, req) => {
             code: -32008,
             message: `Rate limit exceeded – max ${MAX_MSGS_PER_WINDOW} messages per ${RATE_LIMIT_WINDOW_MS / 1000}s`,
           },
-        })
+        }),
       );
     }
 
@@ -282,7 +309,7 @@ wss.on('connection', (socket, req) => {
       message = JSON.parse(data);
     } catch (err) {
       return socket.send(
-        JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' } })
+        JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' } }),
       );
     }
 
@@ -294,7 +321,11 @@ wss.on('connection', (socket, req) => {
 
     if (!message.method || typeof message.method !== 'string') {
       return socket.send(
-        JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32600, message: 'Invalid Request' } })
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: message.id,
+          error: { code: -32600, message: 'Invalid Request' },
+        }),
       );
     }
 
@@ -309,7 +340,7 @@ wss.on('connection', (socket, req) => {
             jsonrpc: '2.0',
             id: message.id,
             error: { code: -32602, message: 'Invalid params', data: err.errors || err.message },
-          })
+          }),
         );
       }
     }
@@ -318,7 +349,9 @@ wss.on('connection', (socket, req) => {
       const response = {
         jsonrpc: '2.0',
         id: message.id,
-        ...(resultOrError.error ? { error: resultOrError.error } : { result: resultOrError.result }),
+        ...(resultOrError.error
+          ? { error: resultOrError.error }
+          : { result: resultOrError.result }),
       };
       socket.send(JSON.stringify(response));
     };
@@ -346,18 +379,34 @@ wss.on('connection', (socket, req) => {
             if (getSupabase()) {
               try {
                 const uploadName = `${resourceId}.txt`;
-                await getSupabase().storage.from('resources').upload(uploadName, content, { contentType: 'text/plain', upsert: true });
-                const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(uploadName);
+                await getSupabase()
+                  .storage.from('resources')
+                  .upload(uploadName, content, { contentType: 'text/plain', upsert: true });
+                const { data: pubData } = getSupabase()
+                  .storage.from('resources')
+                  .getPublicUrl(uploadName);
                 const supaUrl = pubData?.publicUrl || url;
-                await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime || 'text/plain', path: uploadName, uploader: socket.agentId ?? socket.connectionId });
-                return respond({ result: { resourceId, status: 'uploaded', analysis, url: supaUrl } });
+                await getSupabase()
+                  .from('resources')
+                  .insert({
+                    id: resourceId,
+                    name: safeName,
+                    mime_type: safeMime || 'text/plain',
+                    path: uploadName,
+                    uploader: socket.agentId ?? socket.connectionId,
+                  });
+                return respond({
+                  result: { resourceId, status: 'uploaded', analysis, url: supaUrl },
+                });
               } catch (e) {
                 console.error('Supabase text upload failed', e);
               }
             }
             return respond({ result: { resourceId, status: 'uploaded', analysis, url } });
           } catch (err) {
-            return respond({ error: { code: -32002, message: 'Text write failed', data: err.message } });
+            return respond({
+              error: { code: -32002, message: 'Text write failed', data: err.message },
+            });
           }
         }
         if (type === 'binary') {
@@ -376,9 +425,21 @@ wss.on('connection', (socket, req) => {
             if (getSupabase()) {
               try {
                 // upload file to storage bucket 'resources'
-                await getSupabase().storage.from('resources').upload(filename, buffer, { contentType: mimeType, upsert: true });
-                await getSupabase().from('resources').insert({ id: resourceId, name: safeName, mime_type: safeMime, path: filename, uploader: socket.agentId ?? socket.connectionId });
-                const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(filename);
+                await getSupabase()
+                  .storage.from('resources')
+                  .upload(filename, buffer, { contentType: mimeType, upsert: true });
+                await getSupabase()
+                  .from('resources')
+                  .insert({
+                    id: resourceId,
+                    name: safeName,
+                    mime_type: safeMime,
+                    path: filename,
+                    uploader: socket.agentId ?? socket.connectionId,
+                  });
+                const { data: pubData } = getSupabase()
+                  .storage.from('resources')
+                  .getPublicUrl(filename);
                 url = pubData?.publicUrl || url;
               } catch (e) {
                 console.error('Supabase binary upload failed', e);
@@ -386,7 +447,9 @@ wss.on('connection', (socket, req) => {
             }
             return respond({ result: { resourceId, status: 'uploaded', url } });
           } catch (err) {
-            return respond({ error: { code: -32001, message: 'File write failed', data: err.message } });
+            return respond({
+              error: { code: -32001, message: 'File write failed', data: err.message },
+            });
           }
         }
         return respond({ error: { code: -32602, message: 'Unknown resource type' } });
@@ -399,7 +462,12 @@ wss.on('connection', (socket, req) => {
         const requesterRole = socket.role || 'guest';
         const toolOperation = parameters?.operation ?? null;
         if (!roleAllows(requesterRole, toolName, toolOperation)) {
-          return respond({ error: { code: -32013, message: `Role ${requesterRole} not permitted for ${toolName}${toolOperation ? '/' + toolOperation : ''}` } });
+          return respond({
+            error: {
+              code: -32013,
+              message: `Role ${requesterRole} not permitted for ${toolName}${toolOperation ? '/' + toolOperation : ''}`,
+            },
+          });
         }
 
         // Check registry first – if tool is registered there, delegate.
@@ -415,22 +483,54 @@ wss.on('connection', (socket, req) => {
           }
 
           const execId = `chat_${Date.now()}`;
-          // respond immediately with execId so client can attach listeners
           respond({ result: { execId } });
 
-          // kick off streaming asynchronously
+          // --- Basic conversation context ---
+          const ctxKey = socket.connectionId || socket._socketId || socket.agentId || socket; // fallback to object ref
+          const history = conversationContexts.get(ctxKey) || [];
+          const messages = [...history, { role: 'user', content: prompt }].slice(-10); // keep last 10
+
           import('./adapters/openai.js').then(({ chat }) => {
-            chat({ socket, execId, prompt, apiKey, model });
+            chat({
+              socket,
+              execId,
+              messages,
+              apiKey,
+              model,
+              onCompletion: (assistantReply) => {
+                // Update conversation history with new assistant message
+                const updated = [...messages, { role: 'assistant', content: assistantReply }].slice(
+                  -10,
+                );
+                conversationContexts.set(ctxKey, updated);
+              },
+            });
           });
-          return; // early return so we don't fall through
+
+          return; // early return
         }
         if (toolName === 'shell_execute') {
-          const { command } = parameters || {};
-          if (!command) return respond({ error: { code: -32602, message: 'command param required' } });
+          let { command } = parameters || {};
+          if (!command)
+            return respond({ error: { code: -32602, message: 'command param required' } });
+
+          // Reject obviously dangerous patterns before further checks
+          try {
+            command = sanitizeShellInput(command);
+          } catch (e) {
+            return respond({ error: { code: -32006, message: e.message } });
+          }
+
           const cmdParts = command.trim().split(/\s+/);
           const baseCmd = cmdParts[0];
           if (!ALLOW_ALL_COMMANDS && !ALLOWED_CMDS.includes(baseCmd)) {
-            return respond({ error: { code: -32005, message: 'Command not allowed', data: { allowed: ALLOWED_CMDS } } });
+            return respond({
+              error: {
+                code: -32005,
+                message: 'Command not allowed',
+                data: { allowed: ALLOWED_CMDS },
+              },
+            });
           }
 
           // Simple OS-aware munging for ping count flag
@@ -450,11 +550,12 @@ wss.on('connection', (socket, req) => {
           const dockerArgs = ['run', '--rm', dockerImage, 'sh', '-c', finalCmd];
 
           const { spawn } = await import('node:child_process');
-          const spawnLocal = () => spawn(
-            process.platform === 'win32' ? 'cmd.exe' : 'bash',
-            [process.platform === 'win32' ? '/c' : '-c', finalCmd],
-            { shell: false }
-          );
+          const spawnLocal = () =>
+            spawn(
+              process.platform === 'win32' ? 'cmd.exe' : 'bash',
+              [process.platform === 'win32' ? '/c' : '-c', finalCmd],
+              { shell: false },
+            );
 
           let child = spawn('docker', dockerArgs, { shell: false });
 
@@ -472,15 +573,33 @@ wss.on('connection', (socket, req) => {
           }, timeoutMs);
 
           child.stdout.on('data', (chunk) => {
-            socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: chunk.toString() } }));
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'mcp_streamOutput',
+                params: { execId, chunk: chunk.toString() },
+              }),
+            );
           });
           child.stderr.on('data', (chunk) => {
-            socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: chunk.toString() } }));
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'mcp_streamOutput',
+                params: { execId, chunk: chunk.toString() },
+              }),
+            );
           });
 
           child.on('close', (code) => {
             clearTimeout(killTimer);
-            socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_execComplete', params: { execId, status: code === 0 ? 'success' : 'error' } }));
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'mcp_execComplete',
+                params: { execId, status: code === 0 ? 'success' : 'error' },
+              }),
+            );
           });
 
           // store reference for abort
@@ -503,24 +622,35 @@ wss.on('connection', (socket, req) => {
 
         if (toolName === 'anthropic_chat') {
           const { prompt, apiKey, model } = parameters || {};
-          if (!prompt) return respond({ error: { code: -32602, message: 'prompt param required' } });
+          if (!prompt)
+            return respond({ error: { code: -32602, message: 'prompt param required' } });
           const execId = `claude_${Date.now()}`;
           respond({ result: { execId } });
-          import('./adapters/anthropic.js').then(({ chat }) => chat({ socket, execId, prompt, apiKey, model }));
+          import('./adapters/anthropic.js').then(({ chat }) =>
+            chat({ socket, execId, prompt, apiKey, model }),
+          );
           return;
         }
 
         if (toolName === 'gemini_chat') {
           const { prompt, apiKey, model } = parameters || {};
-          if (!prompt) return respond({ error: { code: -32602, message: 'prompt param required' } });
+          if (!prompt)
+            return respond({ error: { code: -32602, message: 'prompt param required' } });
           const execId = `gemini_${Date.now()}`;
           respond({ result: { execId } });
-          import('./adapters/gemini.js').then(({ chat }) => chat({ socket, execId, prompt, apiKey, model }));
+          import('./adapters/gemini.js').then(({ chat }) =>
+            chat({ socket, execId, prompt, apiKey, model }),
+          );
           return;
         }
 
         // Default echo tool
-        return respond({ result: { toolOutput: `Executed ${toolName} with ${JSON.stringify(parameters)}`, executionStatus: 'success' } });
+        return respond({
+          result: {
+            toolOutput: `Executed ${toolName} with ${JSON.stringify(parameters)}`,
+            executionStatus: 'success',
+          },
+        });
       }
 
       case 'mcp_getCapabilities': {
@@ -533,28 +663,58 @@ wss.on('connection', (socket, req) => {
           {
             name: 'openai_chat',
             description: 'LLM chat completion (OpenAI)',
-            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+                apiKey: { type: 'string' },
+                model: { type: 'string' },
+              },
+              required: ['prompt'],
+            },
           },
           {
             name: 'anthropic_chat',
             description: 'LLM chat completion (Claude)',
-            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+                apiKey: { type: 'string' },
+                model: { type: 'string' },
+              },
+              required: ['prompt'],
+            },
           },
           {
             name: 'gemini_chat',
             description: 'LLM chat completion (Gemini)',
-            inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, apiKey: { type: 'string' }, model: { type: 'string' } }, required: ['prompt'] },
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+                apiKey: { type: 'string' },
+                model: { type: 'string' },
+              },
+              required: ['prompt'],
+            },
           },
         ];
         const toolList = [...staticTools, ...registry.list()];
-        console.log('Registered tools:', toolList.map(t => t.name));
+        console.log(
+          'Registered tools:',
+          toolList.map((t) => t.name),
+        );
         return respond({
           result: {
             resources: [],
             tools: toolList,
             prompts: [
               { name: 'test', description: 'Run automated tests' },
-              { name: 'describe this image', description: 'Generate a textual description for the selected image' },
+              {
+                name: 'describe this image',
+                description: 'Generate a textual description for the selected image',
+              },
             ],
           },
         });
@@ -562,7 +722,12 @@ wss.on('connection', (socket, req) => {
 
       case 'mcp_register': {
         // OLD IMPLEMENTATION (connectionId only) has been replaced to support agent IDs and metadata
-        const { connectionId, agentId, role = 'ai_agent', capabilities = [] } = message.params || {};
+        const {
+          connectionId,
+          agentId,
+          role = 'ai_agent',
+          capabilities = [],
+        } = message.params || {};
         if (connectionId) {
           socketMap.set(connectionId, socket);
           socket.connectionId = connectionId; // track on socket for cleanup
@@ -573,12 +738,16 @@ wss.on('connection', (socket, req) => {
         }
         // Store optional metadata on socket for future use
         socket.mcpMeta = { role, capabilities };
-        return respond({ result: { status: 'registered', connectionId: socket.connectionId, agentId } });
+        return respond({
+          result: { status: 'registered', connectionId: socket.connectionId, agentId },
+        });
       }
 
       case 'mcp_forward': {
         const { targetAgentId, targetConnectionId, request } = message.params || {};
-        const connectionIdToUse = targetAgentId ? agentRegistry.get(targetAgentId) : targetConnectionId;
+        const connectionIdToUse = targetAgentId
+          ? agentRegistry.get(targetAgentId)
+          : targetConnectionId;
         if (!connectionIdToUse || !request) {
           return respond({ error: { code: -32602, message: 'Missing target or request' } });
         }
@@ -603,14 +772,20 @@ wss.on('connection', (socket, req) => {
 
       case 'mcp_getResource': {
         const { resourceId } = message.params || {};
-        if (!getSupabase()) return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
-        const { data, error } = await getSupabase().from('resources').select('*').eq('id', resourceId).single();
+        if (!getSupabase())
+          return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
+        const { data, error } = await getSupabase()
+          .from('resources')
+          .select('*')
+          .eq('id', resourceId)
+          .single();
         if (error) return respond({ error: { code: -32051, message: error.message } });
         return respond({ result: data });
       }
 
       case 'mcp_listResources': {
-        if (!getSupabase()) return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
+        if (!getSupabase())
+          return respond({ error: { code: -32050, message: 'Resource DB unavailable' } });
         const { mimeType, uploader } = message.params || {};
         let query = getSupabase().from('resources').select('*');
         if (mimeType) query = query.eq('mime_type', mimeType);
@@ -618,20 +793,25 @@ wss.on('connection', (socket, req) => {
         const { data, error } = await query;
         if (error) return respond({ error: { code: -32051, message: error.message } });
         // Attach public URLs
-        const enriched = await Promise.all((data || []).map(async (row) => {
-          let url = row.path;
-          try {
-            const { data: pubData } = getSupabase().storage.from('resources').getPublicUrl(row.path);
-            if (pubData?.publicUrl) url = pubData.publicUrl;
-          } catch {}
-          return { ...row, url };
-        }));
+        const enriched = await Promise.all(
+          (data || []).map(async (row) => {
+            let url = row.path;
+            try {
+              const { data: pubData } = getSupabase()
+                .storage.from('resources')
+                .getPublicUrl(row.path);
+              if (pubData?.publicUrl) url = pubData.publicUrl;
+            } catch {}
+            return { ...row, url };
+          }),
+        );
         return respond({ result: enriched });
       }
 
       case 'mcp_setStorageCreds': {
         const { url, key } = message.params || {};
-        if (!url || !key) return respond({ error: { code: -32602, message: 'Missing url or key' } });
+        if (!url || !key)
+          return respond({ error: { code: -32602, message: 'Missing url or key' } });
         const ok = initSupabase(url, key);
         if (ok) return respond({ result: { status: 'supabase_configured' } });
         return respond({ error: { code: -32052, message: 'Failed to init Supabase' } });

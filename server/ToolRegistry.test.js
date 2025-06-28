@@ -12,16 +12,26 @@ describe('ToolRegistry', () => {
 
   it('invokes handler and returns result', async () => {
     const reg = new ToolRegistry();
-    reg.register({ name: 'adder', description: 'add', inputSchema: z.object({ a: z.number(), b: z.number() }), handler: ({ a, b }) => a + b });
+    reg.register({
+      name: 'adder',
+      description: 'add',
+      inputSchema: z.object({ a: z.number(), b: z.number() }),
+      handler: ({ a, b }) => a + b,
+    });
     const res = await reg.invoke('adder', { a: 2, b: 3 });
     expect(res).toEqual({ result: 5 });
   });
 
   it('returns error for invalid params', async () => {
     const reg = new ToolRegistry();
-    reg.register({ name: 'strict', description: 'strict', inputSchema: z.object({ a: z.string() }), handler: () => 'never' });
+    reg.register({
+      name: 'strict',
+      description: 'strict',
+      inputSchema: z.object({ a: z.string() }),
+      handler: () => 'never',
+    });
     const res = await reg.invoke('strict', { a: 123 });
     expect(res.error).toBeTruthy();
     expect(res.error.code).toBe(-32602);
   });
-}); 
+});

@@ -1,12 +1,44 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Server, Database, Wrench, MessageSquare, Cloud, Zap } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Server,
+  Database,
+  Wrench,
+  MessageSquare,
+  Cloud,
+  Zap,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMCP } from '../context/MCPContext';
 import { useToast } from '../context/ToastContext';
 
 export const Settings: React.FC = () => {
-  const { connections, resources, tools, prompts, openAiKey, setOpenAiKey, anthropicKey, setAnthropicKey, geminiKey, setGeminiKey, setStorageCreds, listResources, zapierWebhook, setZapierWebhook, supUrl, supKey, setSupabaseCredsLocal, zapierMcpUrl, setZapierMcpUrl, claudeMcpUrl, setClaudeMcpUrl, githubPat, setGithubPat } = useMCP();
+  const {
+    connections,
+    resources,
+    tools,
+    prompts,
+    openAiKey,
+    setOpenAiKey,
+    anthropicKey,
+    setAnthropicKey,
+    geminiKey,
+    setGeminiKey,
+    setStorageCreds,
+    listResources,
+    zapierWebhook,
+    setZapierWebhook,
+    supUrl,
+    supKey,
+    setSupabaseCredsLocal,
+    zapierMcpUrl,
+    setZapierMcpUrl,
+    claudeMcpUrl,
+    setClaudeMcpUrl,
+    githubPat,
+    setGithubPat,
+  } = useMCP();
   const { addToast } = useToast();
   const [serverUrl, setServerUrl] = React.useState('ws://localhost:8080');
   const [key, setKey] = React.useState(openAiKey);
@@ -20,7 +52,9 @@ export const Settings: React.FC = () => {
   const [mcpUrl, setMcpUrl] = React.useState(zapierMcpUrl);
   const [claudeUrl, setClaudeUrl] = React.useState(claudeMcpUrl);
   const [gitPat, setGitPat] = React.useState(githubPat);
-  const [claudeStatus, setClaudeStatus] = React.useState<'unknown'|'online'|'offline'>('unknown');
+  const [claudeStatus, setClaudeStatus] = React.useState<'unknown' | 'online' | 'offline'>(
+    'unknown',
+  );
 
   const handleSaveKeys = () => {
     setOpenAiKey(key.trim());
@@ -31,7 +65,7 @@ export const Settings: React.FC = () => {
     setClaudeMcpUrl(claudeUrl.trim());
     setGithubPat(gitPat.trim());
     setSaved(true);
-    setTimeout(()=>setSaved(false),1500);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   const handleSaveSupabase = async () => {
@@ -44,45 +78,53 @@ export const Settings: React.FC = () => {
       await setStorageCreds(connections[0].id, supabaseUrl.trim(), supabaseKeyVal.trim());
       await listResources(connections[0].id);
       addToast('Supabase creds saved', 'success');
-    } catch (err:any) {
-      addToast('Backend rejected creds: '+err.message, 'error');
+    } catch (err: any) {
+      addToast('Backend rejected creds: ' + err.message, 'error');
       return;
     }
     setSbSaved(true);
-    setTimeout(()=>setSbSaved(false),1500);
+    setTimeout(() => setSbSaved(false), 1500);
   };
 
   // Check Claude MCP availability whenever URL changes
-  React.useEffect(()=>{
-    if (!claudeUrl) { setClaudeStatus('unknown'); return; }
-    let cancelled=false;
+  React.useEffect(() => {
+    if (!claudeUrl) {
+      setClaudeStatus('unknown');
+      return;
+    }
+    let cancelled = false;
     try {
-      const wsUrl = claudeUrl.replace(/^http/,'ws').replace(/^https/,'wss');
+      const wsUrl = claudeUrl.replace(/^http/, 'ws').replace(/^https/, 'wss');
       const ws = new WebSocket(wsUrl);
-      const timer = setTimeout(()=>{
-        if(cancelled) return;
+      const timer = setTimeout(() => {
+        if (cancelled) return;
         ws.close();
         setClaudeStatus('offline');
-      },4000);
+      }, 4000);
       ws.onopen = () => {
         clearTimeout(timer);
-        if(cancelled) { ws.close(); return; }
+        if (cancelled) {
+          ws.close();
+          return;
+        }
         setClaudeStatus('online');
         ws.close();
       };
       ws.onerror = () => {
         clearTimeout(timer);
-        if(cancelled) return;
+        if (cancelled) return;
         setClaudeStatus('offline');
       };
     } catch {
       setClaudeStatus('offline');
     }
-    return ()=>{ cancelled=true; };
-  },[claudeUrl]);
+    return () => {
+      cancelled = true;
+    };
+  }, [claudeUrl]);
 
   return (
-    <motion.div 
+    <motion.div
       className="flex-1 p-6 overflow-y-auto"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -148,7 +190,9 @@ export const Settings: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">OpenAI</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  OpenAI
+                </label>
                 <input
                   type="password"
                   value={key}
@@ -159,7 +203,9 @@ export const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Anthropic</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Anthropic
+                </label>
                 <input
                   type="password"
                   value={claudeK}
@@ -170,7 +216,9 @@ export const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Gemini</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Gemini
+                </label>
                 <input
                   type="password"
                   value={gemKey}
@@ -181,24 +229,53 @@ export const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Zapier Webhook URL</label>
-                <input type="text" value={zapUrl} onChange={(e)=>setZapUrl(e.target.value)} placeholder="https://hooks.zapier.com/..." className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Zapier Webhook URL
+                </label>
+                <input
+                  type="text"
+                  value={zapUrl}
+                  onChange={(e) => setZapUrl(e.target.value)}
+                  placeholder="https://hooks.zapier.com/..."
+                  className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Zapier MCP Server URL</label>
-                <input type="text" value={mcpUrl} onChange={(e)=>setMcpUrl(e.target.value)} placeholder="https://XXXX.runs.mcp.zapier.com/..." className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Zapier MCP Server URL
+                </label>
+                <input
+                  type="text"
+                  value={mcpUrl}
+                  onChange={(e) => setMcpUrl(e.target.value)}
+                  placeholder="https://XXXX.runs.mcp.zapier.com/..."
+                  className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">Claude MCP Server URL
-                {claudeStatus!=='unknown' && (
-                  <span className={`inline-block w-2 h-2 rounded-full ${claudeStatus==='online'?'bg-green-500':'bg-red-500'}`}></span>)}</label>
-                <input type="text" value={claudeUrl} onChange={(e)=>setClaudeUrl(e.target.value)} placeholder="http://localhost:8081" className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none" />
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                  Claude MCP Server URL
+                  {claudeStatus !== 'unknown' && (
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${claudeStatus === 'online' ? 'bg-green-500' : 'bg-red-500'}`}
+                    ></span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={claudeUrl}
+                  onChange={(e) => setClaudeUrl(e.target.value)}
+                  placeholder="http://localhost:8081"
+                  className="w-full bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-gray-100 px-3 py-2 rounded focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">GitHub Personal Access Token</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  GitHub Personal Access Token
+                </label>
                 <input
                   type="password"
                   value={gitPat}
@@ -226,19 +303,42 @@ export const Settings: React.FC = () => {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Supabase URL</label>
-                <input type="text" value={supabaseUrl} onChange={(e)=>setSupabaseUrl(e.target.value)} placeholder="https://project.supabase.co" className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Supabase URL
+                </label>
+                <input
+                  type="text"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  placeholder="https://project.supabase.co"
+                  className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded"
+                />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Service Role Key</label>
-                <input type="password" value={supabaseKeyVal} onChange={(e)=>setSupabaseKeyVal(e.target.value)} placeholder="service-role..." className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded" />
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Service Role Key
+                </label>
+                <input
+                  type="password"
+                  value={supabaseKeyVal}
+                  onChange={(e) => setSupabaseKeyVal(e.target.value)}
+                  placeholder="service-role..."
+                  className="w-full bg-gray-100 dark:bg-dark-700 px-3 py-2 rounded"
+                />
               </div>
-              <button onClick={handleSaveSupabase} className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded">Save Supabase</button>
-              {sbSaved && <p className="text-green-500 text-sm text-center">Supabase configured!</p>}
+              <button
+                onClick={handleSaveSupabase}
+                className="w-full mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 rounded"
+              >
+                Save Supabase
+              </button>
+              {sbSaved && (
+                <p className="text-green-500 text-sm text-center">Supabase configured!</p>
+              )}
             </div>
           </section>
         </div>
       </div>
     </motion.div>
   );
-}; 
+};

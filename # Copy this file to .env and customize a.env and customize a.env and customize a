@@ -1,0 +1,23 @@
+# Copy this file to .env and customize as needed
+
+# --- Server configuration ---
+PORT=8080
+
+# Allows JWT verification for WebSocket connections
+JWT_SECRET=changeme
+
+# Set to false in production to enforce auth, true to allow anonymous connections in dev
+AUTH_OPTIONAL=true
+
+# Comma-separated whitelist of shell commands for the shell_execute tool
+ALLOWED_CMDS=ping,ls,cat,echo
+
+# Docker image used for sandboxed command execution
+MCP_SHELL_IMAGE=debian:stable-slim
+
+# --- Supabase (optional) ---
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE=
+
+# --- Zapier (optional) ---
+ZAPIER_WEBHOOK_URL= 

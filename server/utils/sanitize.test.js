@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeString, sanitizeFilename } from './sanitize.js';
+import { sanitizeString, sanitizeFilename, sanitizeShellInput } from './sanitize.js';
 
 describe('sanitize utilities', () => {
   it('sanitizeString removes control chars and trims', () => {
@@ -16,4 +16,14 @@ describe('sanitize utilities', () => {
     const long = 'a'.repeat(150) + '.txt';
     expect(sanitizeFilename(long).length).toBeLessThanOrEqual(100);
   });
-}); 
+
+  it('sanitizeShellInput rejects dangerous chars', () => {
+    const dangerous = 'echo hi; rm -rf /';
+    expect(() => sanitizeShellInput(dangerous)).toThrow();
+  });
+
+  it('sanitizeShellInput passes safe command', () => {
+    const safe = 'ls -la';
+    expect(sanitizeShellInput(safe)).toBe('ls -la');
+  });
+});
