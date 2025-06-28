@@ -1,0 +1,16 @@
+FROM node:20-slim
+# Allow pinning a specific version via build arg; latest by default
+ARG CLAUDE_VERSION=latest
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_VERSION}
+
+# Expose standard MCP HTTP port and allow overriding via PORT env var
+ENV PORT=8081
+EXPOSE $PORT
+
+# Accept API key via env
+ENV ANTHROPIC_API_KEY=""
+
+RUN npm install -g mcp-proxy
+
+# Launch Claude in stdio mode and expose it over HTTP via mcp-proxy
+ENTRYPOINT ["mcp-proxy", "--stateless", "--port", "8081", "claude", "mcp", "serve"] 

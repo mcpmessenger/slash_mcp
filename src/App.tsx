@@ -22,26 +22,29 @@ function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-      <MCPProvider>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-black dark:to-dark-900 transition-colors duration-300">
-          <Header />
-          <div className="flex h-[calc(100vh-80px)]">
-            <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(p=>!p)} />
-            <Routes>
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/chat" element={<DoublePane />} />
-              <Route path="/playground" element={<Playground />} />
-              <Route path="/" element={<Navigate to="/chat" replace />} />
-            </Routes>
-          </div>
+        <MCPProvider>
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-black dark:to-dark-900 transition-colors duration-300">
+            <Header />
+            <div className="flex h-[calc(100vh-80px)]">
+              <Sidebar
+                collapsed={sidebarCollapsed}
+                onToggle={() => setSidebarCollapsed((p) => !p)}
+              />
+              <Routes>
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/chat" element={<DoublePane />} />
+                <Route path="/playground" element={<Playground />} />
+                <Route path="/" element={<Navigate to="/chat" replace />} />
+              </Routes>
+            </div>
 
-          {showTerminal && <Terminal onClose={() => setShowTerminal(false)} />}
-          {showClients && <MultiClientManager onClose={() => setShowClients(false)} />}
-          {showOpposing && <OpposingTerminals onClose={() => setShowOpposing(false)} />}
-          <AutoConnect />
-          <Walkthrough />
-        </div>
-      </MCPProvider>
+            {showTerminal && <Terminal onClose={() => setShowTerminal(false)} />}
+            {showClients && <MultiClientManager onClose={() => setShowClients(false)} />}
+            {showOpposing && <OpposingTerminals onClose={() => setShowOpposing(false)} />}
+            <AutoConnect />
+            <Walkthrough />
+          </div>
+        </MCPProvider>
       </ToastProvider>
     </BrowserRouter>
   );

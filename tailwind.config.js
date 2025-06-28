@@ -43,28 +43,28 @@ export default {
           800: '#262626',
           900: '#171717',
           950: '#0a0a0a',
-        }
+        },
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(255, 255, 255, 0.1)',
+        glow: '0 0 20px rgba(255, 255, 255, 0.1)',
         'glow-accent': '0 0 20px rgba(255, 255, 255, 0.15)',
         'glow-dark': '0 0 30px rgba(255, 255, 255, 0.08)',
         'inner-glow': 'inset 0 0 20px rgba(255, 255, 255, 0.05)',
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite alternate',
-        'float': 'float 3s ease-in-out infinite',
+        float: 'float 3s ease-in-out infinite',
       },
       keyframes: {
         'pulse-glow': {
           '0%': { boxShadow: '0 0 20px rgba(255, 255, 255, 0.1)' },
           '100%': { boxShadow: '0 0 30px rgba(255, 255, 255, 0.2)' },
         },
-        'float': {
+        float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
-        }
-      }
+        },
+      },
     },
   },
   plugins: [],

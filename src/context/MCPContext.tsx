@@ -17,4 +17,4 @@ export const useMCP = (): MCPContextValue => {
     throw new Error('useMCP must be used within MCPProvider');
   }
   return ctx;
-}; 
+};

@@ -18,4 +18,4 @@ export function initSupabase(url, serviceRoleKey) {
 
 export function getSupabase() {
   return client;
-} 
+}

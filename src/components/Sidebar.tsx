@@ -1,10 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Server, Database, PenTool as Tool, MessageSquare, ChevronRight, Plus, Circle } from 'lucide-react';
+import {
+  Server,
+  Database,
+  PenTool as Tool,
+  MessageSquare,
+  ChevronRight,
+  Plus,
+  Circle,
+} from 'lucide-react';
 import { useMCP } from '../context/MCPContext';
 
-export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> = ({ collapsed=false, onToggle }) => {
-  const { connections, resources, tools, prompts, connect, disconnect, listResources, sendFileResource, addPrompt, removePrompt } = useMCP();
+export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> = ({
+  collapsed = false,
+  onToggle,
+}) => {
+  const {
+    connections,
+    resources,
+    tools,
+    prompts,
+    connect,
+    disconnect,
+    listResources,
+    sendFileResource,
+    addPrompt,
+    removePrompt,
+  } = useMCP();
   const [activeSection, setActiveSection] = useState<string>('connections');
   const [hoveredImg, setHoveredImg] = useState<string | null>(null);
 
@@ -22,22 +44,26 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
   ];
 
   return (
-    <motion.aside 
+    <motion.aside
       className={`relative bg-white/50 dark:bg-black/50 backdrop-blur-md border-r border-gray-200 dark:border-dark-700 overflow-y-auto transition-all duration-300 ${collapsed ? 'w-6 p-0' : 'w-80 p-4'}`}
       initial={false}
       animate={{}}
     >
       {/* collapse/expand arrow */}
       {!collapsed && (
-        <button onClick={onToggle} className="absolute -right-3 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center shadow">
-          <span className="sr-only">Collapse</span>
-          ❮
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"
+        >
+          <span className="sr-only">Collapse</span>❮
         </button>
       )}
       {collapsed && (
-        <button onClick={onToggle} className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-r w-6 h-12 flex items-center justify-center shadow z-50">
-          <span className="sr-only">Expand</span>
-          ❯
+        <button
+          onClick={onToggle}
+          className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-700 text-white rounded-r w-6 h-12 flex items-center justify-center shadow z-50"
+        >
+          <span className="sr-only">Expand</span>❯
         </button>
       )}
       <div className="space-y-2">
@@ -51,9 +77,7 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
             >
               <div className="flex items-center space-x-3">
                 <section.icon className="w-5 h-5 text-primary-600 dark:text-white" />
-                <span className="font-medium text-gray-800 dark:text-white">
-                  {section.label}
-                </span>
+                <span className="font-medium text-gray-800 dark:text-white">{section.label}</span>
                 <span className="px-2 py-1 text-xs bg-primary-100 dark:bg-dark-700 text-primary-700 dark:text-white rounded-full">
                   {section.count}
                 </span>
@@ -76,33 +100,47 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                   className="overflow-hidden"
                 >
                   <div className="mt-2 ml-4 space-y-2">
-                    {section.id === 'connections' && connections.map((conn, idx) => (
-                      <div
-                        key={conn.id}
-                        draggable
-                        onDragStart={(e) => {
-                          const handle = `@${idx + 1}`;
-                          e.dataTransfer.setData(
-                            'application/json',
-                            JSON.stringify({ type: 'connection', item: { handle, id: conn.id, name: conn.server.name } })
-                          );
-                        }}
-                        className="flex items-center justify-between space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
-                      >
-                        <div className="flex items-center space-x-2">
-                          {(() => {
-                            let colorClass = 'text-gray-400';
-                            if (conn.status === 'connected') colorClass = 'text-green-500';
-                            else if (conn.status === 'reconnecting') colorClass = 'text-yellow-500';
-                            else if (conn.status === 'disconnected' || conn.status === 'error') colorClass = 'text-red-500';
-                            return <Circle className={`w-3 h-3 ${colorClass}`} />;
-                          })()}
-                          <span className="text-sm text-gray-700 dark:text-white">{conn.server.name}</span>
+                    {section.id === 'connections' &&
+                      connections.map((conn, idx) => (
+                        <div
+                          key={conn.id}
+                          draggable
+                          onDragStart={(e) => {
+                            const handle = `@${idx + 1}`;
+                            e.dataTransfer.setData(
+                              'application/json',
+                              JSON.stringify({
+                                type: 'connection',
+                                item: { handle, id: conn.id, name: conn.server.name },
+                              }),
+                            );
+                          }}
+                          className="flex items-center justify-between space-x-2 p-2 rounded bg-gray-50 dark:bg-dark-800"
+                        >
+                          <div className="flex items-center space-x-2">
+                            {(() => {
+                              let colorClass = 'text-gray-400';
+                              if (conn.status === 'connected') colorClass = 'text-green-500';
+                              else if (conn.status === 'reconnecting')
+                                colorClass = 'text-yellow-500';
+                              else if (conn.status === 'disconnected' || conn.status === 'error')
+                                colorClass = 'text-red-500';
+                              return <Circle className={`w-3 h-3 ${colorClass}`} />;
+                            })()}
+                            <span className="text-sm text-gray-700 dark:text-white">
+                              {conn.server.name}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => disconnect(conn.id)}
+                            className="text-gray-400 hover:text-red-500"
+                            title="Disconnect"
+                          >
+                            ✕
+                          </button>
                         </div>
-                        <button onClick={() => disconnect(conn.id)} className="text-gray-400 hover:text-red-500" title="Disconnect">✕</button>
-                      </div>
-                    ))}
-                    
+                      ))}
+
                     {section.id === 'resources' && (
                       <div
                         onDragOver={(e) => e.preventDefault()}
@@ -130,80 +168,106 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                             onDragStart={(e) => {
                               e.dataTransfer.setData(
                                 'application/json',
-                                JSON.stringify({ type: 'resource', item: resource })
+                                JSON.stringify({ type: 'resource', item: resource }),
                               );
                             }}
                             className="p-2 rounded bg-gray-50 dark:bg-dark-800 relative cursor-pointer hover:ring-1 hover:ring-primary-400"
                             onClick={() => {
-                              const url = (resource.data as string) || (resource.path as any) || (resource.url as any) || '';
+                              const url =
+                                (resource.data as string) ||
+                                (resource.path as any) ||
+                                (resource.url as any) ||
+                                '';
                               if (url) window.open(url, '_blank');
                             }}
                             onMouseEnter={() => {
-                              if (typeof resource.data === 'string' && resource.mimeType?.startsWith('image/')) {
+                              if (
+                                typeof resource.data === 'string' &&
+                                resource.mimeType?.startsWith('image/')
+                              ) {
                                 setHoveredImg(resource.data);
                               }
                             }}
                             onMouseLeave={() => setHoveredImg(null)}
                           >
-                            <div className="text-sm font-medium text-gray-800 dark:text-white">{resource.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-dark-400 truncate max-w-[180px]">{resource.uri}</div>
+                            <div className="text-sm font-medium text-gray-800 dark:text-white">
+                              {resource.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-dark-400 truncate max-w-[180px]">
+                              {resource.uri}
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
-                    
-                    {section.id === 'tools' && tools.map((tool, idx) => (
-                      <div
-                        key={idx}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData(
-                            'application/json',
-                            JSON.stringify({ type: 'tool', item: tool })
-                          );
-                        }}
-                        className="p-2 rounded bg-gray-50 dark:bg-dark-800"
-                      >
-                        <div className="text-sm font-medium text-gray-800 dark:text-white">{tool.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-dark-400">{tool.description}</div>
-                      </div>
-                    ))}
-                    
-                    {section.id === 'prompts' && prompts.map((prompt, idx) => (
-                      <div
-                        key={idx}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData(
-                            'application/json',
-                            JSON.stringify({ type: 'prompt', item: prompt })
-                          );
-                        }}
-                        className="group p-2 rounded bg-gray-50 dark:bg-dark-800 flex items-start justify-between space-x-2"
-                      >
-                        <div>
-                          <div className="text-sm font-medium text-gray-800 dark:text-white">{prompt.name}</div>
-                          <div className="text-xs text-gray-500 dark:text-dark-400 max-w-[150px] truncate">{prompt.description}</div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            const ok = window.confirm(`Delete prompt "${prompt.name}"?`);
-                            if (ok) {
-                              removePrompt(prompt.name);
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
 
-                    {(section.id === 'connections' || section.id === 'resources' || section.id === 'prompts') && (
+                    {section.id === 'tools' &&
+                      tools.map((tool, idx) => (
+                        <div
+                          key={idx}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData(
+                              'application/json',
+                              JSON.stringify({ type: 'tool', item: tool }),
+                            );
+                          }}
+                          className="p-2 rounded bg-gray-50 dark:bg-dark-800"
+                        >
+                          <div className="text-sm font-medium text-gray-800 dark:text-white">
+                            {tool.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-dark-400">
+                            {tool.description}
+                          </div>
+                        </div>
+                      ))}
+
+                    {section.id === 'prompts' &&
+                      prompts.map((prompt, idx) => (
+                        <div
+                          key={idx}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData(
+                              'application/json',
+                              JSON.stringify({ type: 'prompt', item: prompt }),
+                            );
+                          }}
+                          className="group p-2 rounded bg-gray-50 dark:bg-dark-800 flex items-start justify-between space-x-2"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-gray-800 dark:text-white">
+                              {prompt.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-dark-400 max-w-[150px] truncate">
+                              {prompt.description}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const ok = window.confirm(`Delete prompt "${prompt.name}"?`);
+                              if (ok) {
+                                removePrompt(prompt.name);
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+
+                    {(section.id === 'connections' ||
+                      section.id === 'resources' ||
+                      section.id === 'prompts') && (
                       <motion.button
                         onClick={async () => {
                           if (section.id === 'connections') {
-                            const url = window.prompt('Enter MCP server URL', 'ws://localhost:8080');
+                            const url = window.prompt(
+                              'Enter MCP server URL',
+                              'ws://localhost:8080',
+                            );
                             if (url && url.trim()) connect(url.trim());
                           } else if (section.id === 'resources') {
                             const input = document.createElement('input');
@@ -226,7 +290,9 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
                         whileTap={{ scale: 0.98 }}
                       >
                         <Plus className="w-4 h-4 dark:text-white" />
-                        <span className="text-sm dark:text-white">Add {section.label.slice(0, -1)}</span>
+                        <span className="text-sm dark:text-white">
+                          Add {section.label.slice(0, -1)}
+                        </span>
                       </motion.button>
                     )}
                   </div>
@@ -238,7 +304,11 @@ export const Sidebar: React.FC<{ collapsed?: boolean; onToggle?: () => void }> =
       </div>
       {hoveredImg && (
         <div className="absolute top-2 right-2 z-50 border border-gray-200 dark:border-dark-700 shadow-lg bg-white dark:bg-black p-2 rounded">
-          <img src={hoveredImg} alt="preview" className="max-w-[150px] max-h-[150px] object-contain" />
+          <img
+            src={hoveredImg}
+            alt="preview"
+            className="max-w-[150px] max-h-[150px] object-contain"
+          />
         </div>
       )}
     </motion.aside>

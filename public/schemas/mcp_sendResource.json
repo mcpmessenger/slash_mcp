@@ -6,10 +6,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "text",
-            "binary"
-          ]
+          "enum": ["text", "binary"]
         },
         "content": {
           "type": "string"
@@ -21,10 +18,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "content"
-      ],
+      "required": ["type", "content"],
       "additionalProperties": false
     }
   },

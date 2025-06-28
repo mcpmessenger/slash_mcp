@@ -28,7 +28,14 @@ registry.register({
   description: 'Access OpenAI Chat or Embedding endpoints',
   inputSchema: openaiSchema,
   handler: async (params) => {
-    const { operation, model = (operation === 'chat_completion' ? 'gpt-3.5-turbo' : 'text-embedding-ada-002'), apiKey: overrideKey, messages, prompt, input } = params;
+    const {
+      operation,
+      model = operation === 'chat_completion' ? 'gpt-3.5-turbo' : 'text-embedding-ada-002',
+      apiKey: overrideKey,
+      messages,
+      prompt,
+      input,
+    } = params;
     const apiKey = overrideKey || process.env.OPENAI_API_KEY;
     if (!apiKey) throw { code: -32030, message: 'OpenAI API key not provided' };
     const client = await getClient(apiKey);
@@ -43,10 +50,13 @@ registry.register({
       case 'create_embedding': {
         if (input === undefined) throw { code: -32602, message: 'input param required' };
         const resp = await client.embeddings.create({ model, input });
-        return { embeddings: resp.data.map((d) => d.embedding), dimensions: resp.data[0].embedding.length };
+        return {
+          embeddings: resp.data.map((d) => d.embedding),
+          dimensions: resp.data[0].embedding.length,
+        };
       }
       default:
         throw { code: -32602, message: `Unsupported operation ${operation}` };
     }
   },
-}); 
+});

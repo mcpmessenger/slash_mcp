@@ -11,30 +11,30 @@ const path = require('path');
 const REQUIRED_DEPENDENCIES = {
   // Supabase integration
   '@supabase/supabase-js': '^2.39.0',
-  
+
   // Enhanced validation and schema handling
-  'zod': '^3.22.4',
-  
+  zod: '^3.22.4',
+
   // Process management for GitHub MCP server
   'cross-spawn': '^7.0.3',
-  
+
   // Enhanced error handling
   'http-errors': '^2.0.0',
-  
+
   // Additional utilities
-  'uuid': '^9.0.1',
-  'mime-types': '^2.1.35'
+  uuid: '^9.0.1',
+  'mime-types': '^2.1.35',
 };
 
 const REQUIRED_DEV_DEPENDENCIES = {
   // Testing utilities
   '@types/uuid': '^9.0.7',
-  '@types/mime-types': '^2.1.4'
+  '@types/mime-types': '^2.1.4',
 };
 
 function updatePackageJson() {
   const packageJsonPath = path.join(process.cwd(), 'package.json');
-  
+
   if (!fs.existsSync(packageJsonPath)) {
     console.error('❌ package.json not found in current directory');
     process.exit(1);
@@ -42,7 +42,7 @@ function updatePackageJson() {
 
   try {
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    
+
     // Initialize dependencies if they don't exist
     if (!packageJson.dependencies) {
       packageJson.dependencies = {};
@@ -83,7 +83,7 @@ function updatePackageJson() {
       'test:integration': 'jest --testPathPattern=integration',
       'test:github': 'jest --testPathPattern=github',
       'test:supabase': 'jest --testPathPattern=supabase',
-      'setup:integrations': 'node scripts/setup-integrations.js'
+      'setup:integrations': 'node scripts/setup-integrations.js',
     };
 
     Object.entries(newScripts).forEach(([script, command]) => {
@@ -95,20 +95,19 @@ function updatePackageJson() {
 
     // Write updated package.json
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
-    
+
     console.log(`\n🎉 Package.json updated successfully!`);
-    
+
     if (dependenciesAdded > 0) {
       console.log(`\n📦 Run 'npm install' to install ${dependenciesAdded} new dependencies`);
     }
-    
+
     console.log('\n📋 Next steps:');
     console.log('1. Run: npm install');
     console.log('2. Copy env.integration.example to .env');
     console.log('3. Update .env with your actual credentials');
     console.log('4. Place integration files in server/integrations/');
     console.log('5. Run: npm run test:integration');
-
   } catch (error) {
     console.error('❌ Error updating package.json:', error.message);
     process.exit(1);
@@ -117,4 +116,3 @@ function updatePackageJson() {
 
 // Run the update
 updatePackageJson();
-

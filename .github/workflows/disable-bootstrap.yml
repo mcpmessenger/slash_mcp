@@ -1,7 +1,7 @@
 name: Disable-Bootstrap
 on:
   workflow_run:
-    workflows: ["Bootstrap-Repo"]
+    workflows: ['Bootstrap-Repo']
     types: [completed]
 
 jobs:
@@ -18,4 +18,4 @@ jobs:
       - name: Disable bootstrap workflow via gh cli
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
-        run: gh workflow disable bootstrap.yml 
+        run: gh workflow disable bootstrap.yml

@@ -49,4 +49,4 @@ function base64ToBuffer(base64: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes.buffer;
-} 
+}

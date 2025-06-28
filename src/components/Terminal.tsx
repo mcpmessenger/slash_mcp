@@ -23,7 +23,16 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const [currentCommand, setCurrentCommand] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { connections, invokeTool, invokeChat, invokeClaude, forwardRequest, onNotification, invokeGemini, sendMessage } = useMCP();
+  const {
+    connections,
+    invokeTool,
+    invokeChat,
+    invokeClaude,
+    forwardRequest,
+    onNotification,
+    invokeGemini,
+    sendMessage,
+  } = useMCP();
 
   // history handling
   const [history, setHistory] = useState<string[]>([]);
@@ -36,18 +45,23 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
   const currentTargetId = selectedConn ?? connections[0]?.id;
 
-  const suggestions = ['@2 ls', 'chat "Hello world"', 'claude "Hi"', 'gemini "Idea"', 'ping', 'dir', 'ls'];
+  const suggestions = [
+    '@2 ls',
+    'chat "Hello world"',
+    'claude "Hi"',
+    'gemini "Idea"',
+    'ping',
+    'dir',
+    'ls',
+  ];
 
   const [completionIdx, setCompletionIdx] = useState<number>(-1);
 
   const [autoScroll, setAutoScroll] = useState(true);
 
   const computeCompletions = (prefix: string): string[] => {
-    const pool = [
-      ...suggestions,
-      ...connections.map((c,idx)=>`@${idx+1}`)
-    ];
-    return pool.filter(p=>p.startsWith(prefix) && p!==prefix);
+    const pool = [...suggestions, ...connections.map((c, idx) => `@${idx + 1}`)];
+    return pool.filter((p) => p.startsWith(prefix) && p !== prefix);
   };
 
   useEffect(() => {
@@ -81,11 +95,17 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     const unsub = onNotification((msg) => {
       if (msg.method === 'mcp_streamOutput') {
         const { execId, chunk } = msg.params || {};
-        setEntries((prev) => prev.map((e) => e.execId === execId ? { ...e, output: e.output + chunk } : e));
+        setEntries((prev) =>
+          prev.map((e) => (e.execId === execId ? { ...e, output: e.output + chunk } : e)),
+        );
       }
       if (msg.method === 'mcp_execComplete') {
         const { execId, status } = msg.params || {};
-        setEntries((prev) => prev.map((e) => e.execId === execId ? { ...e, status: status === 'error' ? 'error' : 'success' } : e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.execId === execId ? { ...e, status: status === 'error' ? 'error' : 'success' } : e,
+          ),
+        );
       }
     });
     return () => unsub();
@@ -94,7 +114,7 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
   const executeCommand = async (command: string) => {
     const id = Date.now();
     const entry: TerminalEntry = { id, command, output: '', status: 'running' };
-    setEntries(prev => [...prev, entry]);
+    setEntries((prev) => [...prev, entry]);
 
     // If a real MCP connection is active, decide which tool to invoke
     const targetId = currentTargetId;
@@ -106,26 +126,56 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     // @routing
     if (verb.startsWith('@')) {
       const targetHandle = verb.slice(1);
-      const targetConn = connections.find((c, idx) => `@${idx+1}`===verb || c.server.name === targetHandle || c.server.name.startsWith(targetHandle));
+      const targetConn = connections.find(
+        (c, idx) =>
+          `@${idx + 1}` === verb ||
+          c.server.name === targetHandle ||
+          c.server.name.startsWith(targetHandle),
+      );
       if (!targetConn) {
-        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Target not found', status:'error'}:e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: 'Target not found', status: 'error' } : e,
+          ),
+        );
       } else {
         const restParts = parts.slice(1);
         const secondVerb = restParts[0];
         let innerMsg: any;
         if (secondVerb === 'chat') {
-          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g,'');
-          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'openai_chat', parameters:{ prompt } } };
+          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g, '');
+          innerMsg = {
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'mcp_invokeTool',
+            params: { toolName: 'openai_chat', parameters: { prompt } },
+          };
         } else if (secondVerb === 'claude') {
-          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g,'');
-          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'anthropic_chat', parameters:{ prompt } } };
+          const prompt = restParts.slice(1).join(' ').replace(/^"|"$/g, '');
+          innerMsg = {
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'mcp_invokeTool',
+            params: { toolName: 'anthropic_chat', parameters: { prompt } },
+          };
         } else {
           const commandStr = restParts.join(' ');
-          innerMsg = { jsonrpc:'2.0', id: Date.now(), method:'mcp_invokeTool', params:{ toolName:'shell_execute', parameters:{ command: commandStr } } };
+          innerMsg = {
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: 'mcp_invokeTool',
+            params: { toolName: 'shell_execute', parameters: { command: commandStr } },
+          };
         }
 
         forwardRequest(currentTargetId!, targetConn.id, innerMsg);
-        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:`Forwarded to ${targetConn.server.name}`, status:'success'}:e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id
+              ? { ...e, output: `Forwarded to ${targetConn.server.name}`, status: 'success' }
+              : e,
+          ),
+        );
       }
       return;
     }
@@ -136,20 +186,41 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
       const jsonTail = command.slice(command.indexOf(method) + method.length).trim();
       let paramsObj: any = {};
       if (jsonTail) {
-        try { paramsObj = JSON.parse(jsonTail); } catch {
-          setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Invalid JSON params', status:'error'}:e));
+        try {
+          paramsObj = JSON.parse(jsonTail);
+        } catch {
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.id === id ? { ...e, output: 'Invalid JSON params', status: 'error' } : e,
+            ),
+          );
           return;
         }
       }
-      if(!targetId){
-        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:'Not connected', status:'error'}:e));
+      if (!targetId) {
+        setEntries((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, output: 'Not connected', status: 'error' } : e)),
+        );
         return;
       }
       try {
-        const resp = await sendMessage(targetId, { jsonrpc:'2.0', id:Date.now(), method, params: paramsObj });
-        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:JSON.stringify(resp,null,2), status:'success'}:e));
-      } catch(err:any){
-        setEntries(prev=>prev.map(e=>e.id===id?{...e, output:err.message??'RPC failed', status:'error'}:e));
+        const resp = await sendMessage(targetId, {
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method,
+          params: paramsObj,
+        });
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: JSON.stringify(resp, null, 2), status: 'success' } : e,
+          ),
+        );
+      } catch (err: any) {
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: err.message ?? 'RPC failed', status: 'error' } : e,
+          ),
+        );
       }
       return;
     }
@@ -163,28 +234,48 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
         try {
           params = JSON.parse(jsonStr);
         } catch {
-          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: 'Invalid JSON payload', status: 'error' } : e));
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.id === id ? { ...e, output: 'Invalid JSON payload', status: 'error' } : e,
+            ),
+          );
           return;
         }
       }
       if (!targetId) {
-        setEntries(prev => prev.map(e => e.id === id ? { ...e, output: 'Not connected to MCP server', status: 'error' } : e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: 'Not connected to MCP server', status: 'error' } : e,
+          ),
+        );
         return;
       }
       try {
         const res = await invokeTool(targetId, toolName, params);
         if ('result' in res) {
-          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: JSON.stringify(res.result, null, 2), status: 'success' } : e));
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.id === id
+                ? { ...e, output: JSON.stringify(res.result, null, 2), status: 'success' }
+                : e,
+            ),
+          );
         } else {
           const errObj: any = (res as any).error || {};
           let msg = errObj.message ?? 'Error';
           if (errObj.data && errObj.data.allowed) {
             msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
           }
-          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
+          setEntries((prev) =>
+            prev.map((e) => (e.id === id ? { ...e, output: msg, status: 'error' } : e)),
+          );
         }
       } catch (err: any) {
-        setEntries(prev => prev.map(e => e.id === id ? { ...e, output: err.message ?? 'Execution failed', status: 'error' } : e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: err.message ?? 'Execution failed', status: 'error' } : e,
+          ),
+        );
       }
       return;
     }
@@ -210,27 +301,35 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
 
         if ('result' in res && res.result?.execId) {
           entry.execId = res.result.execId;
-          setEntries(prev => prev.map(e => e.id === id ? { ...e, execId: res.result.execId } : e));
+          setEntries((prev) =>
+            prev.map((e) => (e.id === id ? { ...e, execId: res.result.execId } : e)),
+          );
         } else if ('error' in res) {
           const errObj: any = (res as any).error || {};
           let msg = errObj.message ?? 'Error';
           if (errObj.data && errObj.data.allowed) {
             msg += `\nAllowed commands: ${errObj.data.allowed.join(', ')}`;
           }
-          setEntries(prev => prev.map(e => e.id === id ? { ...e, output: msg, status: 'error' } : e));
+          setEntries((prev) =>
+            prev.map((e) => (e.id === id ? { ...e, output: msg, status: 'error' } : e)),
+          );
         }
       } catch (err: any) {
-        setEntries(prev => prev.map(e => e.id === id ? { ...e, output: err.message ?? 'Execution failed', status: 'error' } : e));
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === id ? { ...e, output: err.message ?? 'Execution failed', status: 'error' } : e,
+          ),
+        );
       }
     } else {
       // Fallback to local mock if no connection
       setTimeout(() => {
         const { output, status } = getCommandOutput(command);
-        setEntries(prev => prev.map(e => e.id === id ? { ...e, output, status } : e));
+        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, output, status } : e)));
       }, 200);
     }
 
-    setHistory(prev => [...prev, command]);
+    setHistory((prev) => [...prev, command]);
     setHistoryIdx(-1);
     // After execution, clear input
     setCurrentCommand('');
@@ -253,7 +352,10 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
       case 'whoami':
         return { output: 'guest', status: 'success' };
       case 'help':
-        return { output: 'Supported commands: ls, pwd, echo, date, whoami, help, clear', status: 'success' };
+        return {
+          output: 'Supported commands: ls, pwd, echo, date, whoami, help, clear',
+          status: 'success',
+        };
       case 'clear':
         setEntries([]);
         return { output: '', status: 'success' };
@@ -266,11 +368,11 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     if (e.key === 'Tab') {
       e.preventDefault();
       const parts = currentCommand.split(/\s+/);
-      const last = parts[parts.length-1];
+      const last = parts[parts.length - 1];
       const options = computeCompletions(last);
-      if (options.length===0) return;
-      const nextIdx = (completionIdx+1)%options.length;
-      parts[parts.length-1]=options[nextIdx];
+      if (options.length === 0) return;
+      const nextIdx = (completionIdx + 1) % options.length;
+      parts[parts.length - 1] = options[nextIdx];
       setCurrentCommand(parts.join(' '));
       setCompletionIdx(nextIdx);
       return;
@@ -278,25 +380,25 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
     // reset completion cycle on other keys
     setCompletionIdx(-1);
 
-    if (e.key==='Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const cmd = currentCommand.trim();
-      if(cmd) executeCommand(cmd);
+      if (cmd) executeCommand(cmd);
       return;
     }
-    if (e.key==='ArrowUp' && !e.shiftKey && !e.altKey) {
+    if (e.key === 'ArrowUp' && !e.shiftKey && !e.altKey) {
       e.preventDefault();
-      setHistoryIdx(idx=>{
-        const newIdx = idx<0?history.length-1:Math.max(0,idx-1);
-        setCurrentCommand(history[newIdx]??'');
+      setHistoryIdx((idx) => {
+        const newIdx = idx < 0 ? history.length - 1 : Math.max(0, idx - 1);
+        setCurrentCommand(history[newIdx] ?? '');
         return newIdx;
       });
     }
-    if (e.key==='ArrowDown' && !e.shiftKey && !e.altKey) {
+    if (e.key === 'ArrowDown' && !e.shiftKey && !e.altKey) {
       e.preventDefault();
-      setHistoryIdx(idx=>{
-        const newIdx = idx>=history.length-1?history.length-1:idx+1;
-        setCurrentCommand(history[newIdx]??'');
+      setHistoryIdx((idx) => {
+        const newIdx = idx >= history.length - 1 ? history.length - 1 : idx + 1;
+        setCurrentCommand(history[newIdx] ?? '');
         return newIdx;
       });
     }
@@ -380,14 +482,16 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
                   className="bg-gray-800 text-gray-100 text-xs border border-gray-600 rounded px-2 py-1 focus:outline-none"
                 >
                   {connections.map((c) => (
-                    <option key={c.id} value={c.id}>{c.server.name}</option>
+                    <option key={c.id} value={c.id}>
+                      {c.server.name}
+                    </option>
                   ))}
                 </select>
               )}
 
               <select
                 value={mode}
-                onChange={(e)=>setMode(e.target.value as Mode)}
+                onChange={(e) => setMode(e.target.value as Mode)}
                 className="bg-gray-800 text-gray-100 text-xs border border-gray-600 rounded px-2 py-1 focus:outline-none"
               >
                 <option value="shell">shell</option>
@@ -405,18 +509,21 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
             </button>
           </div>
 
-          <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
-            e.preventDefault();
-            const cmd = currentCommand.trim();
-            if (!cmd) return;
-            executeCommand(cmd);
-          }} className="p-3 bg-gray-900 border-b border-gray-700 flex items-center space-x-2">
+          <form
+            onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+              e.preventDefault();
+              const cmd = currentCommand.trim();
+              if (!cmd) return;
+              executeCommand(cmd);
+            }}
+            className="p-3 bg-gray-900 border-b border-gray-700 flex items-center space-x-2"
+          >
             <span className="text-green-400 font-mono">$</span>
             <TextareaAutosize
               minRows={1}
               maxRows={6}
               value={currentCommand}
-              onChange={(e)=>setCurrentCommand(e.target.value)}
+              onChange={(e) => setCurrentCommand(e.target.value)}
               onKeyDown={handleKeyDown}
               onDragOver={handleDragOverInput}
               onDrop={handleDropOnInput}
@@ -432,7 +539,7 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
             onMouseEnter={() => setAutoScroll(false)}
             onMouseLeave={() => setAutoScroll(true)}
           >
-            {entries.map(entry => (
+            {entries.map((entry) => (
               <div key={entry.id}>
                 <div className="flex items-start">
                   <span className="text-green-400">$</span>
@@ -442,13 +549,24 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
                   <div className="ml-4 flex items-center space-x-2">
                     <span className="text-primary-400 animate-pulse">running…</span>
                     {entry.execId && (
-                      <button onClick={() => currentTargetId && invokeTool(currentTargetId, 'abort_exec', { execId: entry.execId })} className="text-red-400 hover:text-red-500" title="Abort">
+                      <button
+                        onClick={() =>
+                          currentTargetId &&
+                          invokeTool(currentTargetId, 'abort_exec', { execId: entry.execId })
+                        }
+                        className="text-red-400 hover:text-red-500"
+                        title="Abort"
+                      >
                         <StopCircle className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ) : (
-                  <pre className={`ml-4 whitespace-pre-wrap break-words ${entry.status === 'error' ? 'text-red-400' : 'text-gray-300'}`}>{entry.output}</pre>
+                  <pre
+                    className={`ml-4 whitespace-pre-wrap break-words ${entry.status === 'error' ? 'text-red-400' : 'text-gray-300'}`}
+                  >
+                    {entry.output}
+                  </pre>
                 )}
               </div>
             ))}
@@ -457,4 +575,4 @@ export const Terminal: React.FC<TerminalProps> = ({ onClose }) => {
       </motion.div>
     </AnimatePresence>
   );
-}; 
+};

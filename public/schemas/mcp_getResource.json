@@ -8,9 +8,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "resourceId"
-      ],
+      "required": ["resourceId"],
       "additionalProperties": false
     }
   },

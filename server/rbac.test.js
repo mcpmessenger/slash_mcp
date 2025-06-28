@@ -23,4 +23,4 @@ describe('RBAC roleAllows', () => {
   it('guest defaults to allowed when AUTH_OPTIONAL is true', () => {
     expect(roleAllows('guest', 'openai_chat')).toBe(true);
   });
-}); 
+});

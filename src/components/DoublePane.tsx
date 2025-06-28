@@ -30,7 +30,10 @@ export const DoublePane: React.FC = () => {
       <div className="flex flex-1 items-center justify-center text-gray-600 dark:text-gray-400 p-6 text-center">
         <div>
           <p className="text-lg font-medium mb-2">You need two connections to start.</p>
-          <p className="mb-4">Click <span className="font-semibold">Add Connection</span> in the sidebar twice to create them.</p>
+          <p className="mb-4">
+            Click <span className="font-semibold">Add Connection</span> in the sidebar twice to
+            create them.
+          </p>
           <p className="text-4xl animate-bounce">⬅️</p>
         </div>
       </div>
@@ -46,13 +49,19 @@ export const DoublePane: React.FC = () => {
 
   return (
     <div ref={containerRef} className="relative flex flex-1 h-full">
-      <div style={{flexBasis: leftWidth ? `${leftWidth}px` : '50%'}} className="min-w-[200px]">
+      <div style={{ flexBasis: leftWidth ? `${leftWidth}px` : '50%' }} className="min-w-[200px]">
         <TerminalPane initialConnId={connA.id} />
       </div>
-      <div onMouseDown={startResize} className="w-2 cursor-col-resize bg-gray-700 hover:bg-gray-500" />
-      <div style={{flexBasis: leftWidth ? `calc(100% - ${leftWidth}px - 2px)` : '50%'}} className="min-w-[200px] flex-1">
+      <div
+        onMouseDown={startResize}
+        className="w-2 cursor-col-resize bg-gray-700 hover:bg-gray-500"
+      />
+      <div
+        style={{ flexBasis: leftWidth ? `calc(100% - ${leftWidth}px - 2px)` : '50%' }}
+        className="min-w-[200px] flex-1"
+      >
         <TerminalPane initialConnId={connB.id} />
       </div>
     </div>
   );
-}; 
+};

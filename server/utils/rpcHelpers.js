@@ -7,4 +7,6 @@ export const createSuccess = (result) => ({ result });
  * @param {string} message – human-readable
  * @param {any} [data] – optional details
  */
-export const createError = (code, message, data) => ({ error: { code, message, ...(data !== undefined ? { data } : {}) } }); 
+export const createError = (code, message, data) => ({
+  error: { code, message, ...(data !== undefined ? { data } : {}) },
+});

@@ -27,7 +27,9 @@ const supabase = createClient(url, key, { auth: { persistSession: false } });
     });
     if (error && !error.message.includes('Duplicate')) throw error;
 
-    const { data: dl, error: dlErr } = await supabase.storage.from(bucket).download(`smoke_${ts}.txt`);
+    const { data: dl, error: dlErr } = await supabase.storage
+      .from(bucket)
+      .download(`smoke_${ts}.txt`);
     if (dlErr) throw dlErr;
     const downloadedText = await dl.text();
     if (downloadedText !== textContent) {
@@ -40,4 +42,4 @@ const supabase = createClient(url, key, { auth: { persistSession: false } });
     console.error('🚨 Supabase smoke test failed', err);
     process.exit(1);
   }
-})(); 
+})();

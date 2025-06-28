@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
 
 jobs:
@@ -31,4 +31,4 @@ jobs:
       - name: Start preview
         run: npx vite preview --port 5000 --strictPort &
       - name: Smoke test
-        run: node scripts/smoke.js 
+        run: node scripts/smoke.js

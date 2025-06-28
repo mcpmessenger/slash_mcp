@@ -21,17 +21,3 @@ SUPABASE_SERVICE_ROLE=
 
 # --- Zapier (optional) ---
 ZAPIER_WEBHOOK_URL= 
-ZAPIER_MCP_URL= 
-
-# --- OpenAI (optional) ---
-OPENAI_API_KEY=
-
-# --- Claude (optional) ---
-# Path to Claude CLI binary (defaults to "claude" on PATH)
-CLAUDE_BIN=
-# Claude MCP bridge HTTP endpoint (must include /mcp path)
-CLAUDE_MCP_URL=http://localhost:8081/mcp
-
-# === Docker Compose secrets ===
-GITHUB_PERSONAL_ACCESS_TOKEN=
-SUPABASE_SERVICE_ROLE_KEY=

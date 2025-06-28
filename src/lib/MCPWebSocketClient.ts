@@ -78,4 +78,4 @@ export class MCPWebSocketClient {
     this.socket.addEventListener('close', cb);
     return () => this.socket.removeEventListener('close', cb);
   }
-} 
+}

@@ -30,15 +30,25 @@ function sendRpc(ws, msg) {
   console.log('Connected to', SERVER_URL);
 
   // register connection
-  await sendRpc(ws, { jsonrpc:'2.0', id:1, method:'mcp_register', params:{ connectionId:'smoke-'+Date.now() } });
+  await sendRpc(ws, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'mcp_register',
+    params: { connectionId: 'smoke-' + Date.now() },
+  });
 
   const results = [];
-  for (let i=0;i<COMMANDS.length;i++) {
+  for (let i = 0; i < COMMANDS.length; i++) {
     const cmd = COMMANDS[i];
-    const id = Date.now()+i;
-    const resp = await sendRpc(ws, { jsonrpc:'2.0', id, method:'mcp_invokeTool', params:{ toolName:'shell_execute', parameters:{ command:cmd } } });
+    const id = Date.now() + i;
+    const resp = await sendRpc(ws, {
+      jsonrpc: '2.0',
+      id,
+      method: 'mcp_invokeTool',
+      params: { toolName: 'shell_execute', parameters: { command: cmd } },
+    });
     if (resp.error) {
-      results.push({ cmd, pass:false, error: resp.error.message });
+      results.push({ cmd, pass: false, error: resp.error.message });
     } else if (resp.result && resp.result.execId) {
       // Wait for mcp_execComplete
       const execId = resp.result.execId;
@@ -46,7 +56,7 @@ function sendRpc(ws, msg) {
         const listener = (data) => {
           try {
             const msg = JSON.parse(data);
-            if (msg.method==='mcp_execComplete' && msg.params?.execId===execId) {
+            if (msg.method === 'mcp_execComplete' && msg.params?.execId === execId) {
               ws.off('message', listener);
               resolve(msg.params.status);
             }
@@ -54,13 +64,13 @@ function sendRpc(ws, msg) {
         };
         ws.on('message', listener);
       });
-      results.push({ cmd, pass: status==='success', status });
+      results.push({ cmd, pass: status === 'success', status });
     } else {
-      results.push({ cmd, pass:true });
+      results.push({ cmd, pass: true });
     }
   }
   ws.close();
   console.table(results);
-  const anyPass = results.some(r=>r.pass);
-  process.exit(anyPass?0:1);
-})(); 
+  const anyPass = results.some((r) => r.pass);
+  process.exit(anyPass ? 0 : 1);
+})();

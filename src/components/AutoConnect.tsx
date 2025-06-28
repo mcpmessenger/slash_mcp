@@ -16,4 +16,4 @@ const AutoConnect: React.FC = () => {
   return null;
 };
 
-export default AutoConnect; 
+export default AutoConnect;

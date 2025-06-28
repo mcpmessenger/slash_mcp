@@ -9,11 +9,35 @@ export async function chat({ socket, execId, prompt, apiKey, model = 'gemini-pro
     for await (const chunk of result.stream) {
       const text = chunk.text();
       if (text)
-        socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: text } }));
+        socket.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'mcp_streamOutput',
+            params: { execId, chunk: text },
+          }),
+        );
     }
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_execComplete', params: { execId, status: 'success' } }));
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_execComplete',
+        params: { execId, status: 'success' },
+      }),
+    );
   } catch (err) {
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: `Error: ${err.message}` } }));
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_execComplete', params: { execId, status: 'error' } }));
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_streamOutput',
+        params: { execId, chunk: `Error: ${err.message}` },
+      }),
+    );
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_execComplete',
+        params: { execId, status: 'error' },
+      }),
+    );
   }
-} 
+}

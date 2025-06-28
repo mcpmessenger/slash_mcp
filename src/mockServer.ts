@@ -62,4 +62,4 @@ export function handleRequest(request: MCPMessage): MCPMessage {
       data: `The requested MCP method '${method}' does not exist.`,
     },
   } as const;
-} 
+}

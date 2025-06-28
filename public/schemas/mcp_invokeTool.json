@@ -9,9 +9,7 @@
         },
         "parameters": {}
       },
-      "required": [
-        "toolName"
-      ],
+      "required": ["toolName"],
       "additionalProperties": false
     }
   },

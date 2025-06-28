@@ -25,4 +25,4 @@ jobs:
       - name: Run bootstrap script
         run: |
           chmod +x ./scripts/bootstrap-gh.sh
-          ./scripts/bootstrap-gh.sh 
+          ./scripts/bootstrap-gh.sh

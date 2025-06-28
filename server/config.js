@@ -9,11 +9,8 @@ console.log('DEBUG ZAP', process.env.ZAPIER_WEBHOOK_URL);
 // Application port for HTTP/WebSocket server
 export const PORT = process.env.PORT || 8080;
 
-// Default whitelist of shell commands allowed to be executed by the shell_execute tool
-const DEFAULT_ALLOWED_CMDS = [
-  'ping', 'dir', 'ls', 'pwd', 'whoami', 'date', 'echo', 'ipconfig',
-  'id', 'uname', 'cat', 'head', 'tail', 'env', 'who', 'ps',
-];
+// Minimal default allow list – extended via env ALLOWED_CMDS if needed
+const DEFAULT_ALLOWED_CMDS = ['echo', 'cat', 'ls', 'pwd'];
 
 let extra = [];
 let ALLOW_ALL_COMMANDS = false;
@@ -23,7 +20,10 @@ if (process.env.ALLOWED_CMDS) {
   if (raw.toUpperCase() === 'ALL' || raw === '*') {
     ALLOW_ALL_COMMANDS = true;
   } else {
-    extra = raw.split(',').map((c) => c.trim()).filter(Boolean);
+    extra = raw
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
   }
 }
 
@@ -35,9 +35,16 @@ export { ALLOW_ALL_COMMANDS, ALLOWED_CMDS };
 export const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
 // Whether to allow unauthenticated connections (useful in dev). Defaults to true in dev, false in production unless explicitly set.
-export const AUTH_OPTIONAL = (
-  process.env.AUTH_OPTIONAL ?? (process.env.NODE_ENV !== 'production' ? 'true' : 'false')
-) === 'true';
+export const AUTH_OPTIONAL =
+  (process.env.AUTH_OPTIONAL ?? (process.env.NODE_ENV !== 'production' ? 'true' : 'false')) ===
+  'true';
 
 // Docker image used for sandboxed shell execution
-export const MCP_SHELL_IMAGE = process.env.MCP_SHELL_IMAGE || 'debian:stable-slim'; 
+export const MCP_SHELL_IMAGE = process.env.MCP_SHELL_IMAGE || 'debian:stable-slim';
+
+// Comma-separated list of static API keys that are allowed to connect when JWT is absent.
+// Example: API_KEYS="dev123,staging456"
+export const VALID_API_KEYS = (process.env.API_KEYS || '')
+  .split(',')
+  .map((k) => k.trim())
+  .filter(Boolean);

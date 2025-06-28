@@ -19,7 +19,8 @@ export const Walkthrough: React.FC = () => {
     },
     {
       target: 'header',
-      content: 'Use the settings icon to open the configuration page where you can add API keys and Supabase credentials.',
+      content:
+        'Use the settings icon to open the configuration page where you can add API keys and Supabase credentials.',
     },
     {
       target: 'textarea',
@@ -36,5 +37,14 @@ export const Walkthrough: React.FC = () => {
   };
 
   if (!run) return null;
-  return <Joyride steps={steps} run={run} continuous={true} showProgress={true} showSkipButton={true} callback={handleCallback} />;
-}; 
+  return (
+    <Joyride
+      steps={steps}
+      run={run}
+      continuous={true}
+      showProgress={true}
+      showSkipButton={true}
+      callback={handleCallback}
+    />
+  );
+};

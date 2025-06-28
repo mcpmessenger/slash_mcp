@@ -18,14 +18,38 @@ export async function chat({ socket, execId, prompt, apiKey, model = 'claude-3-h
     for await (const chunk of stream) {
       const delta = chunk?.delta?.text ?? chunk?.content?.[0]?.text ?? '';
       if (delta) {
-        socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: delta } }));
+        socket.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'mcp_streamOutput',
+            params: { execId, chunk: delta },
+          }),
+        );
       }
     }
 
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_execComplete', params: { execId, status: 'success' } }));
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_execComplete',
+        params: { execId, status: 'success' },
+      }),
+    );
   } catch (err) {
     const msg = err?.message || 'Anthropic error';
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_streamOutput', params: { execId, chunk: `Error: ${msg}` } }));
-    socket.send(JSON.stringify({ jsonrpc: '2.0', method: 'mcp_execComplete', params: { execId, status: 'error' } }));
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_streamOutput',
+        params: { execId, chunk: `Error: ${msg}` },
+      }),
+    );
+    socket.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'mcp_execComplete',
+        params: { execId, status: 'error' },
+      }),
+    );
   }
-} 
+}

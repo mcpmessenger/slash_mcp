@@ -21,8 +21,8 @@ npm run format
 
 ## Directory Tips
 
-* `src/` – Front-end React code.
-* `server/` – Node WebSocket backend and tool integrations.
-* `docs/` – Architectural and sprint documentation.
+- `src/` – Front-end React code.
+- `server/` – Node WebSocket backend and tool integrations.
+- `docs/` – Architectural and sprint documentation.
 
-Feel free to open an issue first if you're unsure whether your idea fits the roadmap. 
+Feel free to open an issue first if you're unsure whether your idea fits the roadmap.

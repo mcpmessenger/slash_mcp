@@ -11,7 +11,7 @@ export const Header: React.FC = () => {
   const onSettings = location.pathname === '/settings';
 
   return (
-    <motion.header 
+    <motion.header
       className="bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-700 px-6 py-4"
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -29,7 +29,7 @@ export const Header: React.FC = () => {
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-3">
           {onSettings ? (
             <Link to="/chat">
@@ -52,7 +52,7 @@ export const Header: React.FC = () => {
               </motion.div>
             </Link>
           )}
-          
+
           <ThemeToggle />
         </div>
       </div>
