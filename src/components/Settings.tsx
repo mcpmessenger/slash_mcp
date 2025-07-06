@@ -181,6 +181,26 @@ export const Settings: React.FC = () => {
                   placeholder="ws://localhost:8080"
                 />
               </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const httpUrl = serverUrl
+                      .replace(/^ws:/, 'http:')
+                      .replace(/^wss:/, 'https:');
+                    const res = await fetch(httpUrl.replace(/\/$/, '') + '/healthz');
+                    if (res.ok) {
+                      addToast('Backend is healthy', 'success');
+                    } else {
+                      addToast('Health check failed', 'error');
+                    }
+                  } catch (err) {
+                    addToast('Health check error: ' + (err as any).message, 'error');
+                  }
+                }}
+                className="mt-2 px-3 py-1 bg-primary-600 text-white rounded"
+              >
+                Test connection
+              </button>
             </div>
           </section>
 

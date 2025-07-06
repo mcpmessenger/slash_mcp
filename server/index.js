@@ -24,6 +24,7 @@ import './integrations/ZapierMCPTool.js';
 import './integrations/ClaudeMCPTool.js';
 import './integrations/GitHubMCPTool.js';
 import './integrations/SupabaseMCPTool.js';
+import './integrations/GeminiMCPTool.js';
 import logger from './logger.js';
 import { sanitizeFilename, sanitizeString, sanitizeShellInput } from './utils/sanitize.js';
 
@@ -38,8 +39,22 @@ if (!fs.existsSync(storageDir)) {
 const httpServer = createServer(async (req, res) => {
   // Health-check endpoint for load-balancers / readiness probes
   if (req.method === 'GET' && req.url === '/healthz') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('ok');
+    try {
+      const tools = registry.list ? registry.list() : Object.values(registry.tools || {});
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          status: 'ok',
+          timestamp: Date.now(),
+          tools: Array.isArray(tools)
+            ? tools.map((t) => (typeof t === 'string' ? t : t?.name || 'unknown'))
+            : [],
+        }),
+      );
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', message: err?.message || 'internal' }));
+    }
     return;
   }
 
@@ -458,6 +473,9 @@ wss.on('connection', (socket, req) => {
       case 'mcp_invokeTool': {
         const { toolName, parameters } = message.params || {};
 
+        // Add logging for all tool invocations
+        console.log('[mcp_invokeTool] Invoked tool:', toolName, 'with params:', parameters);
+
         // RBAC enforcement
         const requesterRole = socket.role || 'guest';
         const toolOperation = parameters?.operation ?? null;
@@ -495,7 +513,7 @@ wss.on('connection', (socket, req) => {
               socket,
               execId,
               messages,
-              apiKey,
+              apiKey: apiKey || process.env.OPENAI_API_KEY,
               model,
               onCompletion: (assistantReply) => {
                 // Update conversation history with new assistant message
@@ -504,7 +522,11 @@ wss.on('connection', (socket, req) => {
                 );
                 conversationContexts.set(ctxKey, updated);
               },
+            }).catch((err) => {
+              console.error('[openai_chat] Error:', err);
             });
+          }).catch((err) => {
+            console.error('[openai_chat] Import error:', err);
           });
 
           return; // early return
@@ -627,8 +649,12 @@ wss.on('connection', (socket, req) => {
           const execId = `claude_${Date.now()}`;
           respond({ result: { execId } });
           import('./adapters/anthropic.js').then(({ chat }) =>
-            chat({ socket, execId, prompt, apiKey, model }),
-          );
+            chat({ socket, execId, prompt, apiKey: apiKey || process.env.ANTHROPIC_API_KEY, model }).catch((err) => {
+              console.error('[anthropic_chat] Error:', err);
+            })
+          ).catch((err) => {
+            console.error('[anthropic_chat] Import error:', err);
+          });
           return;
         }
 
@@ -639,8 +665,12 @@ wss.on('connection', (socket, req) => {
           const execId = `gemini_${Date.now()}`;
           respond({ result: { execId } });
           import('./adapters/gemini.js').then(({ chat }) =>
-            chat({ socket, execId, prompt, apiKey, model }),
-          );
+            chat({ socket, execId, prompt, apiKey: apiKey || process.env.GEMINI_API_KEY, model }).catch((err) => {
+              console.error('[gemini_chat] Error:', err);
+            })
+          ).catch((err) => {
+            console.error('[gemini_chat] Import error:', err);
+          });
           return;
         }
 

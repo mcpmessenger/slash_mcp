@@ -31,7 +31,9 @@ npm install
 cp env.example .env
 
 # 3. start the complete local stack (MCP proxy + backend + Vite)
-npm run dev:all   # → http://localhost:5173
+npm run dev:core      # backend + Vite only (no Claude proxy)
+# when ready to use Claude (WSL/Linux), run:
+# npm run dev:all
 ```
 
 _The `dev:all` script runs the Claude MCP proxy, the Node backend (`ws://localhost:3000` by default) **and** the Vite dev server concurrently so you can develop everything with a single command._
@@ -156,7 +158,9 @@ The server reloads the list on startup, so make sure to restart after changing i
 ```bash
 npm install
 cp env.example .env   # edit credentials if needed
-npm run dev:all       # full stack, browser at http://localhost:5173
+npm run dev:core      # backend + Vite only (no Claude proxy)
+# when ready to use Claude (WSL/Linux), run:
+# npm run dev:all
 ```
 
 Visit http://localhost:5173 – the app auto-connects to the local backend; two terminals appear side-by-side and the sidebar is collapsed by default (tap the rail to expand).
