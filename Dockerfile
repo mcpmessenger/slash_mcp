@@ -1,9 +1,10 @@
 # Multi-stage build for Slash / MCP full-stack
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
 COPY . .
+COPY package*.json ./
+COPY scripts ./scripts
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 FROM node:20-alpine AS backend

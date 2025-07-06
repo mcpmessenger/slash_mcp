@@ -28,7 +28,7 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
   const containerRef = useRef<HTMLDivElement>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
-  const [mode, setMode] = useState<'shell' | 'chat' | 'claude' | 'gemini'>('shell');
+  const [selectedAI, setSelectedAI] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -141,7 +141,7 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
 
     // mode based execution when no explicit verb and not @
     if (!verb.startsWith('@')) {
-      if (mode === 'chat') {
+      if (selectedAI === 'openai') {
         const res = await invokeChat(connId, cmd);
         if ('result' in res && res.result?.execId) {
           entry.execId = res.result.execId;
@@ -151,16 +151,17 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
         }
         return;
       }
-      if (mode === 'claude') {
-        const res = await invokeClaude(connId, cmd);
+      if (selectedAI === 'anthropic') {
+        const res = await invokeClaude(connId, cmd, { model: 'claude-3-sonnet-20240229' });
         if ('result' in res && res.result?.execId) {
           entry.execId = res.result.execId;
           setEntries((prev) =>
             prev.map((e) => (e.id === id ? { ...e, execId: res.result.execId } : e)),
           );
         }
+        return;
       }
-      if (mode === 'gemini') {
+      if (selectedAI === 'gemini') {
         const res = await invokeGemini(connId, cmd);
         if ('result' in res && res.result?.execId) {
           entry.execId = res.result.execId;
@@ -168,6 +169,7 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
             prev.map((e) => (e.id === id ? { ...e, execId: res.result.execId } : e)),
           );
         }
+        return;
       }
     }
 
@@ -397,14 +399,13 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
             ))}
           </select>
           <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as 'shell' | 'chat' | 'claude' | 'gemini')}
+            value={selectedAI}
+            onChange={(e) => setSelectedAI(e.target.value as 'openai' | 'anthropic' | 'gemini')}
             className="bg-gray-800 text-gray-100 text-xs border border-gray-600 rounded px-1 py-0.5 focus:outline-none"
           >
-            <option value="shell">shell</option>
-            <option value="chat">chat</option>
-            <option value="claude">claude</option>
-            <option value="gemini">gemini</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="gemini">Gemini</option>
           </select>
         </div>
       </div>
