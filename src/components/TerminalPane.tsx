@@ -232,11 +232,17 @@ export const TerminalPane: React.FC<{ initialConnId: string }> = ({ initialConnI
         setEntries((prev) =>
           prev.map((e) => (e.id === id ? { ...e, execId: res.result.execId } : e)),
         );
-      } else if ('result' in res && res.result?.toolOutput) {
+      } else if ('result' in res && (res.result?.output || res.result?.toolOutput)) {
+        // Prefer actual model output if present, else try to extract from toolOutput
+        let reply = res.result.output;
+        if (!reply && res.result.toolOutput) {
+          // Try to extract the model's reply from toolOutput if possible
+          // If toolOutput is just a status string, fallback to showing nothing or a message
+          const match = res.result.toolOutput.match(/"prompt":"([^"]+)"/);
+          reply = match ? match[1] : '(No model reply found)';
+        }
         setEntries((prev) =>
-          prev.map((e) =>
-            e.id === id ? { ...e, output: res.result.toolOutput, status: 'success' } : e,
-          ),
+          prev.map((e) => (e.id === id ? { ...e, output: reply, status: 'success' } : e)),
         );
       } else if ('error' in res) {
         setEntries((prev) =>

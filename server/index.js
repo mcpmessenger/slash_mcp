@@ -300,6 +300,8 @@ wss.on('connection', (socket, req) => {
   };
 
   socket.on('message', async (data) => {
+    const msgStr = data.toString();
+    console.log('Received message from client:', msgStr);
     // ---- Basic per-connection rate limiting ----
     const now = Date.now();
     if (!socket._rateWindowStart || now - socket._rateWindowStart > RATE_LIMIT_WINDOW_MS) {
@@ -321,7 +323,7 @@ wss.on('connection', (socket, req) => {
 
     let message;
     try {
-      message = JSON.parse(data);
+      message = JSON.parse(msgStr);
     } catch (err) {
       return socket.send(
         JSON.stringify({ jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' } }),
@@ -508,26 +510,29 @@ wss.on('connection', (socket, req) => {
           const history = conversationContexts.get(ctxKey) || [];
           const messages = [...history, { role: 'user', content: prompt }].slice(-10); // keep last 10
 
-          import('./adapters/openai.js').then(({ chat }) => {
-            chat({
-              socket,
-              execId,
-              messages,
-              apiKey: apiKey || process.env.OPENAI_API_KEY,
-              model,
-              onCompletion: (assistantReply) => {
-                // Update conversation history with new assistant message
-                const updated = [...messages, { role: 'assistant', content: assistantReply }].slice(
-                  -10,
-                );
-                conversationContexts.set(ctxKey, updated);
-              },
-            }).catch((err) => {
-              console.error('[openai_chat] Error:', err);
+          import('./adapters/openai.js')
+            .then(({ chat }) => {
+              chat({
+                socket,
+                execId,
+                messages,
+                apiKey: apiKey || process.env.OPENAI_API_KEY,
+                model,
+                onCompletion: (assistantReply) => {
+                  // Update conversation history with new assistant message
+                  const updated = [
+                    ...messages,
+                    { role: 'assistant', content: assistantReply },
+                  ].slice(-10);
+                  conversationContexts.set(ctxKey, updated);
+                },
+              }).catch((err) => {
+                console.error('[openai_chat] Error:', err);
+              });
+            })
+            .catch((err) => {
+              console.error('[openai_chat] Import error:', err);
             });
-          }).catch((err) => {
-            console.error('[openai_chat] Import error:', err);
-          });
 
           return; // early return
         }
@@ -648,13 +653,21 @@ wss.on('connection', (socket, req) => {
             return respond({ error: { code: -32602, message: 'prompt param required' } });
           const execId = `claude_${Date.now()}`;
           respond({ result: { execId } });
-          import('./adapters/anthropic.js').then(({ chat }) =>
-            chat({ socket, execId, prompt, apiKey: apiKey || process.env.ANTHROPIC_API_KEY, model }).catch((err) => {
-              console.error('[anthropic_chat] Error:', err);
-            })
-          ).catch((err) => {
-            console.error('[anthropic_chat] Import error:', err);
-          });
+          import('./adapters/anthropic.js')
+            .then(({ chat }) =>
+              chat({
+                socket,
+                execId,
+                prompt,
+                apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
+                model,
+              }).catch((err) => {
+                console.error('[anthropic_chat] Error:', err);
+              }),
+            )
+            .catch((err) => {
+              console.error('[anthropic_chat] Import error:', err);
+            });
           return;
         }
 
@@ -664,13 +677,21 @@ wss.on('connection', (socket, req) => {
             return respond({ error: { code: -32602, message: 'prompt param required' } });
           const execId = `gemini_${Date.now()}`;
           respond({ result: { execId } });
-          import('./adapters/gemini.js').then(({ chat }) =>
-            chat({ socket, execId, prompt, apiKey: apiKey || process.env.GEMINI_API_KEY, model }).catch((err) => {
-              console.error('[gemini_chat] Error:', err);
-            })
-          ).catch((err) => {
-            console.error('[gemini_chat] Import error:', err);
-          });
+          import('./adapters/gemini.js')
+            .then(({ chat }) =>
+              chat({
+                socket,
+                execId,
+                prompt,
+                apiKey: apiKey || process.env.GEMINI_API_KEY,
+                model,
+              }).catch((err) => {
+                console.error('[gemini_chat] Error:', err);
+              }),
+            )
+            .catch((err) => {
+              console.error('[gemini_chat] Import error:', err);
+            });
           return;
         }
 

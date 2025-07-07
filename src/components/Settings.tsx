@@ -184,9 +184,7 @@ export const Settings: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
-                    const httpUrl = serverUrl
-                      .replace(/^ws:/, 'http:')
-                      .replace(/^wss:/, 'https:');
+                    const httpUrl = serverUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
                     const res = await fetch(httpUrl.replace(/\/$/, '') + '/healthz');
                     if (res.ok) {
                       addToast('Backend is healthy', 'success');

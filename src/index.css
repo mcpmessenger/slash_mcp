@@ -1,3 +1,9 @@
+@import 'tw-animate-css';
+
+:root {
+  --radius: 0.65rem;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,11 +13,13 @@
   .dark input,
   .dark textarea,
   .dark select {
-    @apply text-gray-100;
+    color: #fff !important;
+    background-color: #222 !important;
+    border-color: #444 !important;
   }
   .dark input::placeholder,
   .dark textarea::placeholder {
-    color: theme('colors.gray.400');
+    color: #b0b0b0 !important;
   }
   /* Contrast for labels */
   .dark label {

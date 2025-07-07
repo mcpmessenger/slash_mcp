@@ -31,4 +31,4 @@ export const TerminalGrid: React.FC = () => {
       </div>
     </div>
   );
-}; 
+};

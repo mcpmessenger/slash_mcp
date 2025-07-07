@@ -13,7 +13,10 @@ export type MultiTerminalAction =
 function reducer(state: PaneConfig[], action: MultiTerminalAction): PaneConfig[] {
   switch (action.type) {
     case 'add':
-      return [...state, { id: (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)) }];
+      return [
+        ...state,
+        { id: crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) },
+      ];
     case 'remove':
       return state.filter((p) => p.id !== action.id);
     case 'setConn':
@@ -43,4 +46,4 @@ export const useMultiTerminal = () => {
   const ctx = React.useContext(MultiTerminalContext);
   if (!ctx) throw new Error('useMultiTerminal must be used within MultiTerminalProvider');
   return ctx;
-}; 
+};

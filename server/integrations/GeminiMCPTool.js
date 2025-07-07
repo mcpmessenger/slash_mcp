@@ -28,4 +28,4 @@ registry.register({
     geminiChat({ socket, execId, prompt, apiKey, model });
     return { execId };
   },
-}); 
+});

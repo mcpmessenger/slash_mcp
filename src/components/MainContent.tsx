@@ -33,11 +33,16 @@ export const MainContent: React.FC = () => {
     // Send to MCP mock server
     const response = await sendTextResource(connections[0].id, message);
 
-    if ('result' in response && response.result?.analysis) {
+    if ('result' in response && (response.result?.output || response.result?.toolOutput)) {
+      let reply = response.result.output;
+      if (!reply && response.result.toolOutput) {
+        const match = response.result.toolOutput.match(/"prompt":"([^"]+)"/);
+        reply = match ? match[1] : '(No model reply found)';
+      }
       const serverEntry = {
         id: Date.now() + 1,
         role: 'server' as const,
-        content: response.result.analysis,
+        content: reply,
       };
       setChat((prev) => [...prev, serverEntry]);
     } else if (response.error) {
@@ -96,11 +101,16 @@ export const MainContent: React.FC = () => {
     const userEntry = { id: Date.now(), role: 'user' as const, content: text };
     setChat((prev) => [...prev, userEntry]);
     const response = await sendTextResource(connections[0].id, text);
-    if ('result' in response && response.result?.analysis) {
+    if ('result' in response && (response.result?.output || response.result?.toolOutput)) {
+      let reply = response.result.output;
+      if (!reply && response.result.toolOutput) {
+        const match = response.result.toolOutput.match(/"prompt":"([^"]+)"/);
+        reply = match ? match[1] : '(No model reply found)';
+      }
       const serverEntry = {
         id: Date.now() + 1,
         role: 'server' as const,
-        content: response.result.analysis,
+        content: reply,
       };
       setChat((prev) => [...prev, serverEntry]);
     } else if (response.error) {

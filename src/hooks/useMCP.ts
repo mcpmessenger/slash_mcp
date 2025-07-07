@@ -312,7 +312,11 @@ export const useMCP = () => {
   const invokeClaude = useCallback(
     async (connectionId: string, prompt: string, options: { model?: string } = {}) => {
       if (!anthropicKey) throw new Error('Anthropic API key not set');
-      return invokeTool(connectionId, 'anthropic_chat', { prompt, apiKey: anthropicKey, ...options });
+      return invokeTool(connectionId, 'anthropic_chat', {
+        prompt,
+        apiKey: anthropicKey,
+        ...options,
+      });
     },
     [invokeTool, anthropicKey],
   );
